@@ -23,7 +23,7 @@ fundraising_donations AS (
     campaign_name,
     donation_type,
     payment_status
-  FROM {{ ref('fundraising_donations') }}
+  FROM {{ ref('fundraising_donation_aggregated') }}
 ),
 
 -- E2 fundraiser IDs to exclude

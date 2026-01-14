@@ -21,8 +21,9 @@ fundraising_donations AS (
     payment_date,
     campaign_name,
     donation_type,
-    payment_status
-  FROM {{ ref('fundraising_donations') }}
+    payment_status,
+    opportunity_id
+  FROM {{ ref('fundraising_donation_aggregated') }}
 ),
 
 volunteer_fundraising_summary AS (
@@ -41,6 +42,7 @@ volunteer_fundraising_summary AS (
 e1_e2_co_mapping AS (
   SELECT
     co_id,
+    fundraiser_id as mapping_opportunity_id,
     chapter_id,
     chapter_name,
     city_name,
@@ -60,6 +62,7 @@ donations_with_total AS (
     campaign_name,
     donation_type,
     payment_status,
+    opportunity_id,
     CASE
       WHEN donation_length IS NOT NULL
         AND donation_length ~ '^[0-9]+(\.[0-9]+)?$'
@@ -98,7 +101,7 @@ INNER JOIN user_data ud
 LEFT JOIN volunteer_fundraising_summary vfs
   ON dw.fundraiser_id::integer = vfs.volunteer_id::numeric::integer
 LEFT JOIN e1_e2_co_mapping e2
-  ON ud.user_id::numeric::integer = e2.co_id
+  ON dw.opportunity_id::integer = e2.mapping_opportunity_id
 WHERE vfs.volunteer_id IS NOT NULL
    OR ud.center = 'E2'
    OR e2.co_id IS NOT NULL
