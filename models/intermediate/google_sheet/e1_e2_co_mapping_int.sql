@@ -9,6 +9,7 @@ WITH source_data AS (
 -- Filters out rows where required fields (co_id, engine, co_name, city_name, chapter_id, chapter_name) have missing values
 SELECT
    co_id::integer,
+   fundraiser_id::integer,
    engine,
    co_name,
    city_name,
@@ -20,6 +21,9 @@ SELECT
 FROM source_data
 WHERE co_id IS NOT NULL
   AND TRIM(co_id::text) != ''
+  AND fundraiser_id IS NOT NULL
+  AND TRIM(fundraiser_id::text) != ''
+  AND fundraiser_id::text !~ '[^0-9]'
   AND engine IS NOT NULL
   AND TRIM(engine) != ''
   AND co_name IS NOT NULL
