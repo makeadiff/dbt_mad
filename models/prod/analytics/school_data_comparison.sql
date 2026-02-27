@@ -202,7 +202,11 @@ crm_partners_with_status AS (
                  AND la.non_conversion_reason IN (
                      'school_dropped',
                      'school_inactive',
-                     'school_did_not_want_to_continue_with_mad'
+                     'school_did_not_want_to_continue_with_mad',
+                     'school_partner_not_cooperating',
+                     'low_child_count',
+                     'slot_timing_volunteer_availability_issues',
+                     'ngo_partnership_discontinued'
                  )
             THEN 'DROPPED_AFTER_CONVERSION'
             ELSE 'NOT_CONVERTED'
