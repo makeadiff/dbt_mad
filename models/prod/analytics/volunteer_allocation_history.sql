@@ -45,7 +45,6 @@ JOIN {{ ref('class_int') }} c
   ON sc.class_id = c.class_id
 JOIN {{ ref('class_section_subject_int') }} css
   ON scs.class_section_subject_id = css.class_section_subject_id
-  AND css.removed = FALSE
 JOIN {{ ref('subject_int') }} sub
   ON css.subject_id = sub.subject_id
   AND sub.removed = FALSE

@@ -9,3 +9,5 @@ env
 venv/
 .user.yml
 profiles.yml
+
+.claude/
