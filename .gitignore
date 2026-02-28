@@ -10,4 +10,4 @@ venv/
 .user.yml
 profiles.yml
 
-.claude
+.claude/
