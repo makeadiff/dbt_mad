@@ -29,18 +29,33 @@ latest_partner_agreements as (
   where rn = 1
 ),
 
--- Step 3: Left join with partner_cos_int to get CO assignments
+-- Step 3: Get latest CO assignment per partner
+latest_partner_cos as (
+  select
+    partner_id,
+    co_id
+  from (
+    select
+      partner_id,
+      co_id,
+      row_number() over (partition by partner_id order by updated_at desc) as rn
+    from {{ ref('partner_cos_int') }}
+  ) ranked
+  where rn = 1
+),
+
+-- Step 4: Left join with latest partner_cos to get CO assignments
 partners_with_cos as (
-  select 
+  select
     ap.school_id,
     ap.school_name,
     pco.co_id
   from active_partners ap
-  left join {{ ref('partner_cos_int') }} pco
+  left join latest_partner_cos pco
     on ap.school_id::int = pco.partner_id::int
 ),
 
--- Step 4: Filter for only converted partners
+-- Step 5: Filter for only converted partners
 converted_partners_with_cos as (
   select 
     pwc.school_id,
