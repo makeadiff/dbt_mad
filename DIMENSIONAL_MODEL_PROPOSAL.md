@@ -106,7 +106,7 @@ models/
 │   ├── bubble/                  (22 models + source/model YAML)
 │   ├── crm/                     (10 models + source/model YAML)
 │   └── platform_commons/        (13 models + source/model YAML)
-├── intermediate/                ← KEEP AS-IS (no changes)
+├── intermediate/                
 │   ├── bubble/
 │   ├── crm_data/
 │   └── platform_commons/
@@ -115,10 +115,28 @@ models/
 │       ├── dimensions/          (12 dim_ tables)
 │       ├── facts/               (8 fct_ tables)
 │       └── bridges/             (3 bridge_ tables)
-├── prod/                        ← KEEP AS-IS (no changes)
-│   ├── analytics/
-│   └── external_apps/
 ```
+
+See the metrics and then design the models and columns like that. 
+
+  Staging (rename + cast only):
+  - 7 existing models that are pure renames move directly here
+  - All remaining source tables get new stg_ view models (1:1 with source)
+  - Includes an example stg_bubble__children.sql model
+  - Rules: no joins, no aggregations, no deduplication, materialized only
+
+  Intermediate (reshape, join, deduplicate):
+  - 10 dedup models (all CRM + platform user data using dbt_utils.deduplicate)
+  - 17 join/enrichment models (ID lookups, foreign key resolution)
+  - 11 complex logic models (CASE WHEN date parsing, business rules)
+  - 2 new models proposed: int_applicants_unioned and int_partners_unified
+  - fix
+  - All 38 models listed with current name → new name mapping
+
+  Marts (business-ready entities):
+  - Rules for what belongs (dims, facts, bridges) and what doesn't
+  - Materialized as tables, served to BI tools
+  - Ties into the existing dimension/fact/bridge tables already in the proposal
 
 ### Dimensions (12 tables)
 
@@ -142,13 +160,9 @@ models/
 | # | Table | Grain (1 row = ) | Source | Dimension FKs | Measures |
 |---|---|---|---|---|---|
 | 1 | **fct_child_attendance** | One child, one session | `child_attendance_int` | child_id, school_id, section_id, mentor_id, session_date | attendance_status, did_participate, did_understand, did_complete_task |
-| 2 | **fct_donations** | One donation transaction | `fundraising_donations_int` | fundraiser_id, campaign_id, payment_date | donation_amount, tip_amount, total_amount_paid, donation_type |
 | 3 | **fct_volunteer_slot_assignment** | One volunteer assigned to one slot-class-section | `slot_class_section_volunteer_int` + `slot_class_section_int` | volunteer_id, slot_id, class_section_id, assigned_date | is_active, is_removed |
 | 4 | **fct_school_volunteer** | One volunteer assigned to one school | `school_volunteer_int` | school_id, volunteer_id, created_date | is_removed, academic_year |
-| 5 | **fct_applicant** | One application | `applicant_data_2023/2024/2025_int` + `fellow_applicant_data_int` (UNION) | user_id, application_date | application_status, current_step, sourced_medium, sourced_source |
-| 6 | **fct_events** | One volunteer attending one event | `events_data_int` | volunteer_id, attendance_marked_date | attendance_status, event_type |
 | 7 | **fct_meetings** | One CRM meeting | `meetings_int` | partner_id, poc_id, user_id, meeting_date | follow_up_scheduled (boolean) |
-| 8 | **fct_credits** | One credit transaction | `credit_data_int` | user_id, onboarded_date | credit_point, credit_point_history |
 
 ### Bridge Tables (3 tables)
 
@@ -167,78 +181,8 @@ For every table:
 - `accepted_values` on status/type columns (e.g., attendance_status, application_status)
 - `dbt_expectations.expect_column_values_to_be_between` on monetary amounts
 
----
 
-## Part 3: What Changes in dbt_project.yml
 
-```yaml
-models:
-  dbt_mad:
-    staging:
-      +materialized: view          # lightweight, no storage cost
-    marts:
-      core:
-        +materialized: table       # persisted for query performance
-```
 
-The `macros/generate_schema_name.sql` may need a small update to route `staging` and `marts` models to appropriate schemas.
 
----
 
-## Part 4: What Stays Untouched
-
-- All 47 intermediate models — no changes
-- All 12 production models — no changes
-- `models/schema.yml` — no changes
-- `packages.yml` — no changes (dbt_utils already has date_spine)
-- `macros/` — minor update only if schema routing is needed
-
----
-
-## Part 5: Manual Effort Estimate
-
-### Phase Breakdown
-
-| Phase | What | # of Files | Estimated Time | Notes |
-|---|---|---|---|---|
-| **Phase 1: Staging** | 45 `stg_` view models + 6 YAML files | ~51 files | **3–4 days** | Repetitive but straightforward. Each model is ~15-30 lines of column renaming. Source YAMLs need freshness configs migrated. |
-| **Phase 2: Dimensions** | 12 `dim_` table models + model YAML | ~13 files | **3–4 days** | Moderate complexity. dim_date needs date_spine setup. dim_crm_partner and dim_class_section require multi-table joins. Others are simpler. |
-| **Phase 3: Facts** | 8 `fct_` table models + model YAML | ~9 files | **4–5 days** | Most complex phase. fct_child_attendance and fct_volunteer_slot_assignment need careful grain definition. fct_applicant requires UNION of 4 sources with column alignment. |
-| **Phase 4: Bridges** | 3 `bridge_` table models | ~3 files | **0.5 day** | Simple pass-through of existing junction tables with proper FK columns. |
-| **Phase 5: Tests & Docs** | YAML with tests + column descriptions | ~4 files | **2–3 days** | Writing unique/not_null/relationships tests for every PK/FK across 23 new tables. Column-level descriptions for all dimensions. |
-| **Phase 6: Validation** | Run, test, compare row counts | — | **1–2 days** | dbt run, dbt test, spot-check counts, validate FK integrity, ensure prod models still work. |
-
-### Total Estimate
-
-| Scenario | Time |
-|---|---|
-| **One person, focused** | **~2.5 to 3 weeks** |
-| **One person, alongside other work** | **~4 to 5 weeks** |
-| **Two people in parallel** (one on staging+dims, one on facts+bridges) | **~1.5 to 2 weeks** |
-
-### Effort Distribution
-
-```
-Staging (30%) ████████████░░░░░░░░░░░░░░░░░░  repetitive, low risk
-Dimensions   (20%) ████████░░░░░░░░░░░░░░░░░░░░░░  moderate, some joins
-Facts        (25%) ██████████░░░░░░░░░░░░░░░░░░░░  highest complexity
-Bridges      (3%)  █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  trivial
-Tests/Docs   (12%) █████░░░░░░░░░░░░░░░░░░░░░░░░░  tedious but important
-Validation   (10%) ████░░░░░░░░░░░░░░░░░░░░░░░░░░  critical for confidence
-```
-
-### Risk Factors That Could Add Time
-
-- **Partner ID reconciliation**: CRM and Bubble partner IDs don't have a clean mapping table. Fact tables referencing schools will need to be careful about which partner dimension they FK to. May need investigation time.
-- **Applicant data UNION**: The 3 yearly applicant tables have different column sets (2023 is very different from 2024/2025). Aligning them into one `fct_applicant` will require careful column mapping.
-- **Academic year logic**: dim_date needs an `academic_year` column. Need to confirm the exact month boundaries (likely June–May for Indian academic year).
-- **Existing prod models**: While we're not changing them, we need to verify they still build correctly after adding staging + marts.
-
-### What You Get For This Investment
-
-1. **Any new analytics report** becomes a 10-20 line query instead of 200+ lines
-2. **Consistent definitions** — "active child", "recruited volunteer" defined once
-3. **Test coverage** — catch data issues before they hit dashboards
-4. **Self-documenting** — new team members can understand the data model from table names alone
-5. **Foundation for incremental models** — fct_child_attendance can later become incremental for performance
-6. **BI tool friendly** — star schemas are what Metabase/Looker/Superset expect
