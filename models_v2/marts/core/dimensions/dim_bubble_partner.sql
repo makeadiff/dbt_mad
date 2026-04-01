@@ -4,8 +4,9 @@
 -- Flow: stg_bubble__partner → dim_bubble_partner
 
 select
-    partner_id1 as bubble_partner_id,
-    partner_id as bubble_partner_uuid,
+    {{ dbt_utils.generate_surrogate_key(['bubble_partner_id']) }} as bubble_partner_sk,
+    bubble_partner_id,
+    bubble_partner_uuid,
     partner_name,
     city,
     state,
@@ -24,5 +25,5 @@ select
     is_removed,
     created_date,
     modified_date
-from {{ ref('stg_bubble__partner') }}
+from {{ ref('int_bubble__partner') }}
 where is_removed = false

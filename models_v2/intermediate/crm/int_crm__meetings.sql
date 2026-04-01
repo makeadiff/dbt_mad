@@ -16,10 +16,10 @@ deduplicated as (
 )
 
 select
-    meeting_id::text,
-    partner_id::text,
-    poc_id::text,
-    user_id::text,
+    meeting_id,
+    partner_id,
+    poc_id,
+    user_id,
     meeting_date,
     follow_up_meeting_date,
     follow_up_meeting_scheduled,

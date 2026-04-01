@@ -4,6 +4,7 @@
 -- Source: int_bubble__slot (resolves school_id via UUID join)
 
 select
+    {{ dbt_utils.generate_surrogate_key(['slot_id']) }} as slot_sk,
     slot_id,
     slot_name,
     day_of_week,

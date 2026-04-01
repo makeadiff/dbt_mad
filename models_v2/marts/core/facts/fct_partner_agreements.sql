@@ -4,6 +4,8 @@
 -- Flow: int_crm__partner_agreements → fct_partner_agreements
 
 select
+    {{ dbt_utils.generate_surrogate_key(['partner_agreement_id']) }} as agreement_sk,
+    {{ dbt_utils.generate_surrogate_key(['partner_id']) }} as partner_sk,
     partner_agreement_id as agreement_id,
     partner_id,
     current_status,
@@ -18,3 +20,4 @@ select
     created_at,
     updated_at
 from {{ ref('int_crm__partner_agreements') }}
+where is_removed = false

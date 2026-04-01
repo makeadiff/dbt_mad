@@ -1,9 +1,6 @@
-{{ config(materialized='table') }}
-
--- dim_mou: One row per MOU agreement
--- Flow: int_crm__mous → dim_mou
-
 select
+    {{ dbt_utils.generate_surrogate_key(['mou_id']) }} as mou_sk,
+    {{ dbt_utils.generate_surrogate_key(['partner_id']) }} as partner_sk,
     mou_id,
     partner_id,
     mou_url,

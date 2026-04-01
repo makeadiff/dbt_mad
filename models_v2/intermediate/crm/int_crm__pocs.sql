@@ -16,8 +16,8 @@ deduplicated as (
 )
 
 select
-    poc_id::text,
-    partner_id::text,
+    poc_id,
+    partner_id,
     poc_name,
     poc_email,
     poc_contact,

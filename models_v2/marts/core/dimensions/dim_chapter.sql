@@ -5,11 +5,12 @@
 -- Chapter staging already has city and state directly
 
 select
-    raw.chapter_id,
-    raw.chapter_name,
-    raw.academic_year,
-    raw.city,
-    raw.state,
-    raw.created_date,
-    raw.modified_date
-from {{ ref('stg_bubble__chapter') }} raw
+    {{ dbt_utils.generate_surrogate_key(['chapter_id']) }} as chapter_sk,
+    chapter_id,
+    chapter_name,
+    academic_year,
+    city,
+    state,
+    created_date,
+    modified_date
+from {{ ref('stg_bubble__chapter') }}

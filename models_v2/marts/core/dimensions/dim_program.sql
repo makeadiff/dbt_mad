@@ -4,6 +4,7 @@
 -- Flow: stg_bubble__program → dim_program
 
 select
+    {{ dbt_utils.generate_surrogate_key(['program_id']) }} as program_sk,
     program_id,
     program_name,
     created_date,

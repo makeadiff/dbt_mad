@@ -4,6 +4,7 @@
 -- Flow: int_crm__partners + int_crm__cities + stg_crm__states → dim_crm_partner
 
 select
+    {{ dbt_utils.generate_surrogate_key(['p.partner_id']) }} as crm_partner_sk,
     p.partner_id as crm_partner_id,
     p.partner_name,
     c.city_name as city,

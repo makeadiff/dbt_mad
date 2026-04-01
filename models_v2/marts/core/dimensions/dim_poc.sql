@@ -4,6 +4,7 @@
 -- Flow: int_crm__pocs → dim_poc
 
 select
+    {{ dbt_utils.generate_surrogate_key(['poc_id', 'partner_id']) }} as poc_sk,
     poc_id,
     partner_id,
     poc_name,
@@ -15,3 +16,4 @@ select
     created_at,
     updated_at
 from {{ ref('int_crm__pocs') }}
+where is_removed = false

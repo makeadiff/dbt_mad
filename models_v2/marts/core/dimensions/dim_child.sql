@@ -4,6 +4,7 @@
 -- Source: int_bubble__child (resolves school_id via UUID joins)
 
 select
+    {{ dbt_utils.generate_surrogate_key(['child_id']) }} as child_sk,
     child_id,
     first_name,
     last_name,
@@ -20,5 +21,5 @@ select
     school_id,
     created_date,
     modified_date
-from {{ ref('int_bubble__child') }}
+from {{ ref('int_bubble__children') }}
 where is_removed = false

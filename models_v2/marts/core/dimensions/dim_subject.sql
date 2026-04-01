@@ -4,6 +4,7 @@
 -- Source: int_bubble__subject (resolves program UUID→ID)
 
 select
+    {{ dbt_utils.generate_surrogate_key(['subject_id']) }} as subject_sk,
     subject_id,
     subject_name,
     program_id,
