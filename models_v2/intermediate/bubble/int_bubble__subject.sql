@@ -30,4 +30,13 @@ deduplicated as (
     }}
 )
 
-select * from deduplicated
+select
+    {{ dbt_utils.generate_surrogate_key(['subject_id']) }} as subject_sk,
+    {{ dbt_utils.generate_surrogate_key(['program_id']) }} as program_sk,
+    subject_id,
+    subject_name,
+    is_removed,
+    program_id,
+    created_date,
+    modified_date
+from deduplicated

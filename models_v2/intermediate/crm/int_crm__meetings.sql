@@ -16,6 +16,7 @@ deduplicated as (
 )
 
 select
+    {{ dbt_utils.generate_surrogate_key(['meeting_id']) }} as meeting_sk,
     meeting_id,
     partner_id,
     poc_id,

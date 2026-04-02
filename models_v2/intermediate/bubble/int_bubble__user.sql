@@ -17,13 +17,19 @@ deduplicated as (
 )
 
 select
+    {{ dbt_utils.generate_surrogate_key(['user_id_number']) }} as volunteer_sk,
     user_id,
     city,
     state,
     center,
-    user_id_number,
+    user_id_number as volunteer_id,
     user_role,
     user_display_name,
+    authentication,
+    contact_number,
+    user_login,
+    user_signed_up,
+    updated_password,
     reporting_manager_role_code,
     created_date,
     modified_date

@@ -36,4 +36,15 @@ deduplicated as (
     }}
 )
 
-select * from deduplicated
+select
+    {{ dbt_utils.generate_surrogate_key(['class_section_subject_id']) }} as class_section_subject_sk,
+    {{ dbt_utils.generate_surrogate_key(['class_section_id']) }} as class_section_sk,
+    {{ dbt_utils.generate_surrogate_key(['subject_id']) }} as subject_sk,
+    class_section_subject_id,
+    academic_year,
+    class_section_id,
+    subject_id,
+    is_removed,
+    created_date,
+    modified_date
+from deduplicated

@@ -16,8 +16,8 @@ deduplicated as (
 )
 
 select
-    city_id::text,
-    state_id::text,
+    city_id,
+    state_id,
     city_name,
     created_at,
     updated_at

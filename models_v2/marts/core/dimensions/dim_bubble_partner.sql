@@ -4,8 +4,8 @@
 -- Flow: stg_bubble__partner → dim_bubble_partner
 
 select
-    {{ dbt_utils.generate_surrogate_key(['bubble_partner_id']) }} as bubble_partner_sk,
-    bubble_partner_id,
+    partner_sk as bubble_partner_sk,
+    partner_id as bubble_partner_id,
     bubble_partner_uuid,
     partner_name,
     city,

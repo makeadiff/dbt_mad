@@ -11,6 +11,7 @@ with partner_map as (
 
 joined as (
     select
+        {{ dbt_utils.generate_surrogate_key(['raw.slot_id']) }} as slot_sk,
         raw.slot_id,
         raw.slot_name,
         raw.academic_year,

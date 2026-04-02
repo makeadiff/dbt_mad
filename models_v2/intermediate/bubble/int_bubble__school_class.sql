@@ -35,4 +35,14 @@ deduplicated as (
     }}
 )
 
-select * from deduplicated
+select
+    {{ dbt_utils.generate_surrogate_key(['school_class_id']) }} as school_class_sk,
+    {{ dbt_utils.generate_surrogate_key(['class_id']) }} as class_sk,
+    {{ dbt_utils.generate_surrogate_key(['school_id']) }} as school_sk,
+    school_class_id,
+    class_id,
+    school_id,
+    is_removed,
+    created_date,
+    modified_date
+from deduplicated

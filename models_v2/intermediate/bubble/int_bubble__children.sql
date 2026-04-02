@@ -50,4 +50,22 @@ deduplicated as (
     }}
 )
 
-select * from deduplicated
+select
+    {{ dbt_utils.generate_surrogate_key(['child_id']) }} as child_sk,
+    child_id,
+    first_name,
+    last_name,
+    gender,
+    dob,
+    city,
+    date_of_enrollment,
+    mother_tongue,
+    age,
+    is_active,
+    is_removed,
+    class_id,
+    school_class_id,
+    school_id,
+    created_date,
+    modified_date
+from deduplicated

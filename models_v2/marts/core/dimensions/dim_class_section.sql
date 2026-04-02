@@ -4,7 +4,9 @@
 -- Flow: int_bubble__class_section + int_bubble__school_class + stg_bubble__class → dim_class_section
 
 select
-    {{ dbt_utils.generate_surrogate_key(['cs.class_section_id']) }} as class_section_sk,
+    cs.class_section_sk,
+    cs.school_class_sk,
+    cs.school_sk,
     cs.class_section_id,
     cs.section_name,
     c.class_name,

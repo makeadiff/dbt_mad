@@ -17,6 +17,8 @@ deduplicated as (
 )
 
 select
+    {{ dbt_utils.generate_surrogate_key(['partner_id1']) }} as partner_sk,
+    partner_id1 as partner_id,
     partner_id1 as bubble_partner_id,
     partner_id as bubble_partner_uuid,
     partner_name,

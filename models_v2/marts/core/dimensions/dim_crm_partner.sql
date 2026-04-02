@@ -4,7 +4,7 @@
 -- Flow: int_crm__partners + int_crm__cities + stg_crm__states → dim_crm_partner
 
 select
-    {{ dbt_utils.generate_surrogate_key(['p.partner_id']) }} as crm_partner_sk,
+    p.partner_sk as crm_partner_sk,
     p.partner_id as crm_partner_id,
     p.partner_name,
     c.city_name as city,
@@ -24,4 +24,4 @@ select
     p.updated_at
 from {{ ref('int_crm__partners') }} p
 left join {{ ref('int_crm__cities') }} c on p.city_id = c.city_id
-left join {{ ref('stg_crm__states') }} s on p.state_id = s.state_id::text
+left join {{ ref('stg_crm__states') }} s on p.state_id = s.state_id

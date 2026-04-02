@@ -1,3 +1,8 @@
+{{ config(materialized='table') }}
+
+-- dim_mou: Memorandum of Understanding details
+-- Flow: int_crm__mous → dim_mou
+
 select
     mou_sk,
     partner_sk,

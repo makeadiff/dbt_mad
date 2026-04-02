@@ -16,10 +16,11 @@ deduplicated as (
 )
 
 select
-    partner_id::text,
+    {{ dbt_utils.generate_surrogate_key(['partner_id']) }} as partner_sk,
+    partner_id,
     partner_name,
-    city_id::text,
-    state_id::text,
+    city_id,
+    state_id,
     pincode,
     is_removed,
     interested,
@@ -31,7 +32,7 @@ select
     total_child_count,
     low_income_resource,
     classes,
-    created_by::text,
+    created_by,
     created_at,
     updated_at
 from deduplicated

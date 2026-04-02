@@ -16,6 +16,7 @@ deduplicated as (
 )
 
 select
+    {{ dbt_utils.generate_surrogate_key(['poc_id']) }} as poc_sk,
     poc_id,
     partner_id,
     poc_name,

@@ -16,9 +16,10 @@ deduplicated as (
 )
 
 select
-    partner_co_id::text,
-    partner_id::text,
-    co_id::text,
+    {{ dbt_utils.generate_surrogate_key(['partner_co_id']) }} as partner_co_sk,
+    partner_co_id,
+    partner_id,
+    co_id,
     created_at,
     updated_at
 from deduplicated
