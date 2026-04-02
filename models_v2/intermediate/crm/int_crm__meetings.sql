@@ -17,6 +17,9 @@ deduplicated as (
 
 select
     {{ dbt_utils.generate_surrogate_key(['meeting_id']) }} as meeting_sk,
+    {{ dbt_utils.generate_surrogate_key(['partner_id']) }} as partner_sk,
+    {{ dbt_utils.generate_surrogate_key(['poc_id']) }} as poc_sk,
+    {{ dbt_utils.generate_surrogate_key(['user_id']) }} as user_sk,
     meeting_id,
     partner_id,
     poc_id,

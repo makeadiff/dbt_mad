@@ -1,11 +1,9 @@
-{{ config(materialized='table') }}
-
 -- fct_partner_agreements: One row per partner agreement state tracking record
--- Flow: int_crm__partner_agreements → fct_partner_agreements
+-- Grain: One record per partner per stage in the agreement conversion funnel
 
 select
-    {{ dbt_utils.generate_surrogate_key(['partner_agreement_id']) }} as agreement_sk,
-    {{ dbt_utils.generate_surrogate_key(['partner_id']) }} as partner_sk,
+    partner_agreement_sk as agreement_sk,
+    partner_sk,
     partner_agreement_id as agreement_id,
     partner_id,
     current_status,
@@ -16,6 +14,11 @@ select
     non_conversion_reason,
     potential_child_count,
     expected_conversion_day,
+    case 
+        when conversion_stage = 'converted' and agreement_drop_date is not null 
+        then (agreement_drop_date::date - created_at::date) 
+    end as days_to_conversion,
+    case when conversion_stage = 'converted' then true else false end as is_converted,
     is_removed,
     created_at,
     updated_at

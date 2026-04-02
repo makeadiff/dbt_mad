@@ -17,6 +17,7 @@ deduplicated as (
 
 select
     {{ dbt_utils.generate_surrogate_key(['partner_agreement_id']) }} as partner_agreement_sk,
+    {{ dbt_utils.generate_surrogate_key(['partner_id']) }} as partner_sk,
     partner_agreement_id,
     partner_id,
     current_status,
