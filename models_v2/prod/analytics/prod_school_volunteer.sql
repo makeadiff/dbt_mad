@@ -53,5 +53,5 @@ SELECT
     v.reporting_manager_role_code
 
 FROM {{ ref('fct_school_volunteer') }} sv
-LEFT JOIN {{ ref('dim_bubble_partner') }} p ON sv.school_id = p.bubble_partner_id
-LEFT JOIN {{ ref('dim_volunteer') }} v ON sv.volunteer_id = v.volunteer_id
+JOIN {{ ref('dim_bubble_partner') }} p ON sv.school_id = p.bubble_partner_id
+JOIN {{ ref('dim_volunteer') }} v ON sv.volunteer_id = v.volunteer_id
