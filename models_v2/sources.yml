@@ -38,3 +38,22 @@ sources:
       - name: poc_partners
       - name: pocs
       - name: states
+
+  - name: pc_raw
+    tables:
+      - name: batchAttendance
+      - name: batchStudent
+      - name: batchStudentAttendance
+      - name: bsaFeedbackResponses
+      - name: childQuestions
+      - name: communityMember
+      - name: opportunity
+      - name: opportunityApplicant
+      - name: opportunityApplicantMeta
+      - name: opportunityLocationList
+      - name: person
+      - name: personAddresses
+      - name: personProfile
+      - name: person_personAddresses
+      - name: school
+      - name: user
