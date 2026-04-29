@@ -1,0 +1,59 @@
+version: 2
+
+sources:
+  - name: bubble_raw
+    tables:
+      - name: batch_child
+      - name: chapter
+      - name: chapter_school
+      - name: child
+      - name: child_class
+      - name: child_class_section
+      - name: child_program
+      - name: child_removal_log
+      - name: child_subject
+      - name: class
+      - name: class_section
+      - name: class_section_subject
+      - name: co_chapter
+      - name: partner
+      - name: program
+      - name: school_class
+      - name: school_volunteer
+      - name: slot
+      - name: slot_class_section
+      - name: slot_class_section_volunteer
+      - name: subject
+      - name: user
+
+  - name: crm_raw
+    tables:
+      - name: cities
+      - name: manager_co
+      - name: meetings
+      - name: mous
+      - name: partner_agreements
+      - name: partner_cos
+      - name: partners
+      - name: poc_partners
+      - name: pocs
+      - name: states
+
+  - name: pc_raw
+    tables:
+      - name: batchAttendance
+      - name: batchStudent
+      - name: batchStudentAttendance
+      - name: bsaFeedbackResponses
+      - name: childQuestions
+      - name: communityMember
+      - name: opportunity
+      - name: opportunityApplicant
+      - name: opportunityApplicantMeta
+      - name: opportunityLocationList
+      - name: person
+      - name: personAddresses
+      - name: personProfile
+      - name: person_personAddresses
+      - name: school
+      - name: user
