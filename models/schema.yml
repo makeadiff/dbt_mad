@@ -125,6 +125,10 @@ sources:
         identifier: e1_cci_chapter_mapping
         description: Google sheet E1 CCI chapter mapping data
         loaded_at_field: _airbyte_extracted_at
+      - name: master_mapping_sheet
+        identifier: master_mapping_sheet
+        description: Google sheet master mapping data
+        loaded_at_field: _airbyte_extracted_at
 
   - name: bubble_staging
     schema: bubble_staging
@@ -270,4 +274,54 @@ models:
       - name: volunteers_assigned_to_class
         description: Number of volunteers assigned to classes at this school (through slot assignments)
 
-    
+  - name: master_mapping_sheet_int
+    description: Row-by-row validated intermediate model for master_mapping_sheet. Every source row is retained; invalid rows are labelled via validation columns. Downstream marts should filter WHERE validation_status = true.
+    columns:
+      - name: city_name
+        description: City where the chapter operates
+      - name: state
+        description: State where the chapter operates
+      - name: co_id
+        description: Community Organizer ID (integer cast from source)
+      - name: co_name
+        description: Community Organizer display name
+      - name: chapter_id
+        description: Chapter identifier — numeric string for E2 (e.g. '171'), alphanumeric for E1 (e.g. 'E1_Ahm_01')
+      - name: chapter_name
+        description: Chapter display name
+      - name: worknode_id
+        description: Worknode identifier (integer cast from source)
+      - name: cho_id
+        description: Chapter Head Organizer ID (integer cast from source)
+      - name: cho_name
+        description: Chapter Head Organizer display name
+      - name: engine
+        description: Programme engine — valid values are E1 or E2
+      - name: chapter_status
+        description: Operational status of the chapter — valid values are Active, Dropped out, Pending status
+      - name: cho_status
+        description: Status of the Chapter Head Organizer
+      - name: sourcing_campaign_code
+        description: Unique sourcing campaign code assigned to the chapter
+      - name: campaign_name
+        description: Human-readable campaign name
+      - name: fundraiser_id
+        description: Fundraiser identifier — must be numeric digits only
+      - name: fundraiser_name
+        description: Fundraiser display name
+      - name: cho_allocation_on_pc
+        description: CHO allocation percentage on programme coordinator
+      - name: sheet_validation_status
+        description: Validation status flag from the Google Sheet itself (preserved as-is from source)
+      - name: sheet_validation_issues
+        description: Validation issue notes from the Google Sheet itself (preserved as-is from source)
+      - name: validation_status
+        description: "SQL-computed row validity — true = all checks passed, false = one or more checks failed"
+      - name: validation_issues
+        description: Semicolon-separated list of all failed check messages for this row; NULL when validation_status is true
+      - name: issue_count
+        description: Count of failed checks on this row; 0 when validation_status is true
+      - name: validation_run_at
+        description: Timestamp of the dbt run that produced this validation result
+
+
