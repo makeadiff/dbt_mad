@@ -129,6 +129,14 @@ sources:
         identifier: master_mapping_sheet
         description: Google sheet master mapping data
         loaded_at_field: _airbyte_extracted_at
+      - name: child_attendance
+        identifier: child_attendance
+        description: Google sheet child attendance and session survey data
+        loaded_at_field: _airbyte_extracted_at
+      - name: volunteer_attendance
+        identifier: volunteer_attendance
+        description: Google sheet volunteer attendance and session survey data
+        loaded_at_field: _airbyte_extracted_at
 
   - name: bubble_staging
     schema: bubble_staging
@@ -324,4 +332,150 @@ models:
       - name: validation_run_at
         description: Timestamp of the dbt run that produced this validation result
 
+  - name: child_attendance_int
+    description: Cleaned intermediate model for child attendance session data from Google Sheets. Filters rows missing child_id, partner_id, volunteer_id, attendance, or start_date.
+    columns:
+      - name: child_id
+        description: Child identifier (integer cast from source)
+      - name: partner_id
+        description: Partner/school identifier (integer cast from source)
+      - name: volunteer_id
+        description: Volunteer identifier (integer cast from source)
+      - name: slot_class_section_id
+        description: Slot or class section identifier
+      - name: child_name
+        description: Full name of the child
+      - name: partner_name
+        description: Name of the partner/school
+      - name: volunteers
+        description: Volunteer name(s) associated with the session
+      - name: attendance
+        description: Attendance status for the child (e.g. Present, Absent)
+      - name: day_of_week
+        description: Day of the week the session was held
+      - name: current_week
+        description: Week identifier within the survey cycle
+      - name: survey_cycle
+        description: Survey cycle period (e.g. monthly or quarterly label)
+      - name: start_date
+        description: Session start date
+      - name: end_date
+        description: Session end date
+      - name: entry_started_date
+        description: Timestamp when the form entry was started (ISO 8601, NULL if unparseable)
+      - name: entry_last_updated_date
+        description: Timestamp when the form entry was last updated (ISO 8601, NULL if unparseable)
+      - name: substitute_volunteer_name
+        description: Name of the substitute volunteer, if any
+      - name: substitute_volunteer_mad_id
+        description: MAD ID of the substitute volunteer, if any
+      - name: volunteer_was_substituted
+        description: Boolean flag — true if the volunteer was substituted by someone else
+      - name: q1
+        description: Survey answer for question 1
+      - name: q2
+        description: Survey answer for question 2
+      - name: q3
+        description: Survey answer for question 3
+      - name: q4
+        description: Survey answer for question 4
+      - name: form_title
+        description: Fillout form title (metadata)
+      - name: tag_id
+        description: Fillout tag identifier (metadata)
+      - name: author
+        description: Fillout form author (metadata)
+      - name: main_subtitle
+        description: Fillout form subtitle (metadata)
+      - name: main_cover_image
+        description: Fillout form cover image URL (metadata)
+      - name: published_date
+        description: Date the form was published (metadata)
+      - name: last_activity_date
+        description: Timestamp of last form activity (metadata, NULL if unparseable)
 
+  - name: volunteer_attendance_int
+    description: Cleaned intermediate model for volunteer attendance session data from Google Sheets. Filters rows missing partner_id, volunteer_id, attendance, or start_date.
+    columns:
+      - name: partner_id
+        description: Partner/school identifier (integer cast from source)
+      - name: volunteer_id
+        description: Volunteer identifier (integer cast from source)
+      - name: slot_class_section_id
+        description: Slot or class section identifier
+      - name: partner_name
+        description: Name of the partner/school
+      - name: volunteers
+        description: Volunteer name(s) associated with the session
+      - name: attendance
+        description: Attendance status for the volunteer (e.g. Present, Absent)
+      - name: day_of_week
+        description: Day of the week the session was held
+      - name: current_week
+        description: Week identifier within the survey cycle
+      - name: survey_cycle
+        description: Survey cycle period (e.g. monthly or quarterly label)
+      - name: feedback
+        description: Free-text session feedback from the volunteer
+      - name: start_date
+        description: Session start date
+      - name: end_date
+        description: Session end date
+      - name: entry_started_date
+        description: Timestamp when the form entry was started (ISO 8601, NULL if unparseable)
+      - name: entry_last_updated_date
+        description: Timestamp when the form entry was last updated (ISO 8601, NULL if unparseable)
+      - name: substitute_volunteer_name
+        description: Name of the substitute volunteer, if any
+      - name: substitute_volunteer_mad_id
+        description: MAD ID of the substitute volunteer, if any
+      - name: volunteer_was_substituted
+        description: Boolean flag — true if the volunteer was substituted by someone else
+      - name: q5_reflections
+        description: Volunteer reflections (open-ended Q5)
+      - name: q1_set_1
+        description: "Set 1 Q1 — I created a safe, welcoming space for my students"
+      - name: q2_set_1
+        description: "Set 1 Q2 — I asked questions that helped my students reflect"
+      - name: q3_set_1
+        description: "Set 1 Q3 — My students asked questions regarding their academics"
+      - name: q4_set_1
+        description: "Set 1 Q4 — My students demonstrated engagement and eagerness"
+      - name: q1_set_2
+        description: "Set 2 Q1 — I helped my students identify their strengths"
+      - name: q2_set_2
+        description: "Set 2 Q2 — I brought in a variety of exposure pieces"
+      - name: q3_set_2
+        description: "Set 2 Q3 — My students set improvement goals"
+      - name: q4_set_2
+        description: "Set 2 Q4 — My students supported each other"
+      - name: q1_set_3
+        description: "Set 3 Q1 — I created a space where students could discuss"
+      - name: q2_set_3
+        description: "Set 3 Q2 — I asked questions and brought artifacts"
+      - name: q3_set_3
+        description: "Set 3 Q3 — My students are focusing on asking questions about growth"
+      - name: q4_set_3
+        description: "Set 3 Q4 — My students report being regular with attendance"
+      - name: q1_set_4
+        description: "Set 4 Q1 — My students have attained school attendance over target"
+      - name: q2_set_4
+        description: "Set 4 Q2 — My students have regularly completed all school and CCI work"
+      - name: q3_set_4
+        description: "Set 4 Q3 — My students have achieved their monthly improvement goals"
+      - name: q4_set_4
+        description: "Set 4 Q4 — My students report feeling safe, happy and trusted"
+      - name: form_title
+        description: Fillout form title (metadata)
+      - name: tag_id
+        description: Fillout tag identifier (metadata)
+      - name: author
+        description: Fillout form author (metadata)
+      - name: main_subtitle
+        description: Fillout form subtitle (metadata)
+      - name: main_cover_image
+        description: Fillout form cover image URL (metadata)
+      - name: published_date
+        description: Date the form was published (metadata)
+      - name: last_activity_date
+        description: Timestamp of last form activity (metadata, NULL if unparseable)
