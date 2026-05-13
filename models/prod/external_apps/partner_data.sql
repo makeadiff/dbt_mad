@@ -65,7 +65,15 @@ SELECT
   -- Partner created/updated dates (converted to IST / Asia/Kolkata)
   -- `AT TIME ZONE 'Asia/Kolkata'` converts a timestamptz to local time (timestamp without time zone)
   (p.created_at AT TIME ZONE 'Asia/Kolkata') AS partner_created_date,
-  (p.updated_at AT TIME ZONE 'Asia/Kolkata') AS partner_updated_date
+  (GREATEST(
+    p.updated_at,
+    latest_co.updated_at,
+    latest_co_name.updated_at,
+    latest_poc.updated_at,
+    latest_meeting.updated_at,
+    latest_mou.updated_at,
+    latest_pa.updated_at
+  ) AT TIME ZONE 'Asia/Kolkata') AS partner_updated_date
 
 FROM {{ ref('partners_int') }} p
 
@@ -79,7 +87,7 @@ LEFT JOIN {{ ref('states_int') }} st
 
 -- Latest partner CO row
 LEFT JOIN LATERAL (
-  SELECT pci.co_id
+  SELECT pci.co_id, pci.updated_at
   FROM {{ ref('partner_cos_int') }} pci
   WHERE pci.partner_id = p.id
   ORDER BY pci.created_at DESC NULLS LAST
@@ -88,7 +96,7 @@ LEFT JOIN LATERAL (
 
 -- Latest CO name from user_data_int
 LEFT JOIN LATERAL (
-  SELECT ud.user_display_name AS co_name
+  SELECT ud.user_display_name AS co_name, ud.user_updated_datetime AS updated_at
   FROM {{ ref('user_data_int') }} ud
   WHERE ud.user_id = latest_co.co_id
   LIMIT 1
@@ -100,7 +108,8 @@ LEFT JOIN LATERAL (
     poc.poc_name        AS poc_name,
     poc.poc_contact     AS poc_contact,
     poc.poc_email       AS poc_email,
-    poc.poc_designation AS poc_designation
+    poc.poc_designation AS poc_designation,
+    GREATEST(pp.updated_at, poc.updated_at) AS updated_at
   FROM {{ ref('poc_partners_int') }} pp
   JOIN {{ ref('pocs_int') }} poc
     ON poc.id = pp.poc_id
@@ -111,7 +120,7 @@ LEFT JOIN LATERAL (
 
 -- Latest meeting row (for contact date)
 LEFT JOIN LATERAL (
-  SELECT m.meeting_date
+  SELECT m.meeting_date, m.updated_at
   FROM {{ ref('meetings_int') }} m
   WHERE m.partner_id = p.id
   ORDER BY m.meeting_date DESC NULLS LAST
@@ -125,7 +134,8 @@ LEFT JOIN LATERAL (
     mo.mou_start_date,
     mo.mou_end_date,
     mo.mou_sign_date,
-    mo.confirmed_child_count
+    mo.confirmed_child_count,
+    mo.updated_at
   FROM {{ ref('mous_int') }} mo
   WHERE mo.partner_id = p.id
     AND mo.mou_status = 'active'
@@ -135,7 +145,7 @@ LEFT JOIN LATERAL (
 
 -- Latest partner_agreement row
 LEFT JOIN LATERAL (
-  SELECT pa.conversion_stage
+  SELECT pa.conversion_stage, pa.updated_at
   FROM {{ ref('partner_agreements_int') }} pa
   WHERE pa.partner_id = p.id
   ORDER BY pa.created_at DESC NULLS LAST
