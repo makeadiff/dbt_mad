@@ -479,3 +479,66 @@ models:
         description: Date the form was published (metadata)
       - name: last_activity_date
         description: Timestamp of last form activity (metadata, NULL if unparseable)
+
+  - name: sf_user_and_chapter_data
+    description: Salesforce-ready chapter and fundraiser mapping from master_mapping_sheet_int. Active chapters only, with non-null chapter_id and fundraiser_id. One row per chapter.
+    columns:
+      - name: state
+        description: State where the chapter operates
+      - name: city_name
+        description: City where the chapter operates
+      - name: chapter_id
+        description: Chapter identifier — unique in this model (1 chapter = 1 fundraiser)
+        tests:
+          - unique
+          - not_null
+      - name: chapter_name
+        description: Chapter display name
+      - name: co_id
+        description: Community Organizer ID
+      - name: co_name
+        description: Community Organizer display name
+      - name: cho_id
+        description: Chapter Head Organizer ID
+      - name: cho_name
+        description: Chapter Head Organizer display name
+      - name: status
+        description: Operational status of the chapter (from chapter_status in source; only Active rows are included)
+        tests:
+          - accepted_values:
+              values: ['Active']
+      - name: fundraiser_id
+        description: Fundraiser identifier — unique in this model
+        tests:
+          - unique
+          - not_null
+      - name: fundraiser_name
+        description: Fundraiser display name
+      - name: area
+        description: Geographic area — placeholder column, NULL until a source is available
+
+  - name: sf_fundraising_data
+    description: Salesforce-ready fundraising donations sourced directly from platform commons staging (no filters applied).
+    columns:
+      - name: payment_date
+        description: Timestamp when the payment was made
+      - name: donation_type
+        description: Type of donation
+      - name: fundraiser_id
+        description: Opportunity identifier (from opportunity_id in source)
+      - name: donation_amount
+        description: Donation amount
+      - name: donation_id
+        description: Unique donation identifier
+      - name: donation_length
+        description: Length or duration associated with the donation
+      - name: payment_status
+        description: Status of the payment
+      - name: funds_raised_by_user_id
+        description: User ID of the fundraiser (from fundraiser_id in source)
+      - name: funds_raised_by_user_name
+        description: Name of the fundraiser (from fundraiser_name in source)
+      - name: gateway_subscription_id
+        description: Gateway subscription identifier
+      - name: donor_id
+        description: Donor identifier — placeholder column, NULL until a source is available
