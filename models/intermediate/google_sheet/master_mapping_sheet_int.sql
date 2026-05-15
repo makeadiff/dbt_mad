@@ -8,12 +8,12 @@ WITH trimmed AS (
     NULLIF(TRIM("City_Name"), '')               AS city_name,
     NULLIF(TRIM("State"), '')                   AS state,
     NULLIF(TRIM("CO_ID"), '')::integer          AS co_id,
-    NULLIF(TRIM("CO_Name"), '')                 AS co_name,
+    NULLIF(TRIM("CO_Name"), '')                 AS sheet_co_name,
     NULLIF(TRIM("Chapter_ID"), '')              AS chapter_id,
     NULLIF(TRIM("Chapter_Name"), '')            AS chapter_name,
     NULLIF(TRIM("Worknode_ID"), '')::integer    AS worknode_id,
     NULLIF(TRIM("CHO_ID"), '')::integer         AS cho_id,
-    NULLIF(TRIM("CHO_Name"), '')                AS cho_name,
+    NULLIF(TRIM("CHO_Name"), '')                AS sheet_cho_name,
     NULLIF(TRIM("Engine"), '')                  AS engine,
     NULLIF(TRIM("Chapter_Status"), '')          AS chapter_status,
     NULLIF(TRIM("CHO_Status"), '')              AS cho_status,
@@ -130,6 +130,26 @@ fundraiser_not_numeric AS (
     AND fundraiser_id ~ '[^0-9]'
 ),
 
+-- Check 8: co_id provided but not found in user_data_int
+invalid_co_id AS (
+  SELECT t._airbyte_raw_id, 'co_id ''' || t.co_id::text || ''' not found in user data' AS issue_text
+  FROM trimmed t
+  WHERE t.co_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM {{ ref('user_data_int') }} u WHERE u.user_id::numeric::integer = t.co_id
+    )
+),
+
+-- Check 9: cho_id provided but not found in user_data_int
+invalid_cho_id AS (
+  SELECT t._airbyte_raw_id, 'cho_id ''' || t.cho_id::text || ''' not found in user data' AS issue_text
+  FROM trimmed t
+  WHERE t.cho_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM {{ ref('user_data_int') }} u WHERE u.user_id::numeric::integer = t.cho_id
+    )
+),
+
 all_issues AS (
   SELECT _airbyte_raw_id, issue_text FROM dup_chapter_cho
   UNION ALL
@@ -150,6 +170,10 @@ all_issues AS (
   SELECT _airbyte_raw_id, issue_text FROM invalid_chapter_status
   UNION ALL
   SELECT _airbyte_raw_id, issue_text FROM fundraiser_not_numeric
+  UNION ALL
+  SELECT _airbyte_raw_id, issue_text FROM invalid_co_id
+  UNION ALL
+  SELECT _airbyte_raw_id, issue_text FROM invalid_cho_id
 ),
 
 issue_agg AS (
@@ -165,12 +189,14 @@ SELECT
   t.city_name,
   t.state,
   t.co_id,
-  t.co_name,
+  t.sheet_co_name,
+  co_user.user_display_name                             AS co_name,
   t.chapter_id,
   t.chapter_name,
   t.worknode_id,
   t.cho_id,
-  t.cho_name,
+  t.sheet_cho_name,
+  cho_user.user_display_name                            AS cho_name,
   t.engine,
   t.chapter_status,
   t.cho_status,
@@ -181,6 +207,10 @@ SELECT
   t.cho_allocation_on_pc,
   t.sheet_validation_status,
   t.sheet_validation_issues,
+  CASE
+    WHEN t.engine = 'E2' AND t.chapter_id IS NOT NULL THEN partner_chapter.id IS NOT NULL
+    ELSE NULL
+  END                                                   AS chapter_validation,
   COALESCE(i.issue_count, 0) = 0                        AS validation_status,
   i.validation_issues,
   COALESCE(i.issue_count, 0)                            AS issue_count,
@@ -189,4 +219,7 @@ SELECT
   t._airbyte_extracted_at,
   t._airbyte_meta
 FROM trimmed t
+LEFT JOIN {{ ref('user_data_int') }} co_user  ON co_user.user_id::numeric::integer = t.co_id
+LEFT JOIN {{ ref('user_data_int') }} cho_user ON cho_user.user_id::numeric::integer = t.cho_id
+LEFT JOIN {{ ref('partners_int') }} partner_chapter ON t.engine = 'E2' AND t.chapter_id = partner_chapter.id
 LEFT JOIN issue_agg i ON t._airbyte_raw_id = i._airbyte_raw_id
