@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 WITH deduped AS (
   -- 1 chapter = 1 fundraiser. When multiple rows share a chapter_id, keep the row
