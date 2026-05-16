@@ -106,3 +106,5 @@ sources:
       - name: userRole
       - name: opportunityApplicantRetention
       - name: retentionFormResponse
+      - name: userRoleHierarchy
+      - name: state
