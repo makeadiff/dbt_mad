@@ -44,7 +44,14 @@ sources:
       - name: batchAttendance
       - name: batchStudent
       - name: batchStudentAttendance
-      - name: bsaFeedbackResponses
+      - name: bsaFeedbackResponses_bridge
+      - name: feedbackResponses
+      - name: feedbackResponses_defaultResponseOptions_bridge
+      - name: defaultResponseOptions
+      - name: options
+      - name: optionName
+      - name: options_optionName_bridge
+      - name: iE
       - name: childQuestions
       - name: communityMember
       - name: opportunity
@@ -54,6 +61,48 @@ sources:
       - name: person
       - name: personAddresses
       - name: personProfile
-      - name: person_personAddresses
+      - name: person_personAddresses_bridge
       - name: school
+      - name: city
       - name: user
+      - name: levelName
+      - name: level_levelName_bridge
+      - name: schoolName
+      - name: school_schoolName_bridge
+      - name: university
+      - name: universityName
+      - name: university_universityName_bridge
+      - name: courseName
+      - name: course_courseName_bridge
+      - name: batchName
+      - name: scLevelBatch_batchName_bridge
+      - name: worknodeSlotShiftSubstitute
+      - name: communityMemberAttendance
+      - name: userCreditPoint
+      - name: creditHistories
+      - name: userCreditPoint_creditHistories_bridge
+      - name: opportunityDonor
+      - name: donorPayment
+      - name: opportunityDonorPayment
+      - name: opportunityDonorPaymentList
+      - name: opportunityDonor_opportunityDonorPaymentList_bridge
+      - name: scLevelBatch
+      - name: level
+      - name: course
+      - name: address
+      - name: worknode
+      - name: personContacts
+      - name: contact
+      - name: person_personContacts_bridge
+      - name: gender
+      - name: worknodeSlot
+      - name: worknodeSlotShift
+      - name: student
+      - name: field
+      - name: fieldName
+      - name: field_fieldName_bridge
+      - name: schoolCourse
+      - name: scLevelId
+      - name: userRole
+      - name: opportunityApplicantRetention
+      - name: retentionFormResponse

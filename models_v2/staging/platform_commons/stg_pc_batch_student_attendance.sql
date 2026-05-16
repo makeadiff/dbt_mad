@@ -5,19 +5,20 @@ with raw as (
 )
 
 select
-    id as batch_student_attendance_id,
-    "batchStudentId" as batch_student_id,
-    "sclevelbatchId" as sc_level_batch_id,
+    id::bigint as batch_student_attendance_id,
+    "batchStudentId"::bigint as batch_student_id,
+    "sclevelbatchId"::bigint as sc_level_batch_id,
     
-    "attendanceStatus" as attendance_status,
-    "attendanceContext" as attendance_context,
-    "capturedByUser" as captured_by_user_id,
+    "attendanceStatus"::text as attendance_status,
+    "attendanceContext"::text as attendance_context,
+    "capturedByUser"::text as captured_by_user_id,
+    "forSlotShiftId"::bigint as for_slot_shift_id,
     
-    date as attendance_date,
-    "subjectCode" as subject_code,
+    date::text as attendance_date,
+    "subjectCode"::text as subject_code,
     
-    "createdDateTime" as created_datetime,
-    "xIsDeleted" as is_deleted
+    "createdDateTime"::timestamp as created_datetime,
+    "xIsDeleted"::boolean as is_deleted
 
 from raw
 where "xIsDeleted" is false or "xIsDeleted" is null

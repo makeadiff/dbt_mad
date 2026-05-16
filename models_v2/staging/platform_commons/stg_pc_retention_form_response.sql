@@ -1,0 +1,16 @@
+{{ config(materialized='view') }}
+
+with raw as (
+    select * from {{ source('pc_raw', 'retentionFormResponse') }}
+)
+
+select
+    id::bigint as retention_form_response_id,
+    "opportunityApplicantRetentionId"::bigint as retention_id,
+    "preferredWorkNodeId"::bigint as preferred_work_node_id,
+    "preferredRole"::text as preferred_role,
+    "willingnessToContinue"::text as willing_to_continue,
+    "isActive"::boolean as is_active,
+    "xIsDeleted"::boolean as is_deleted
+from raw
+where "xIsDeleted" is false or "xIsDeleted" is null

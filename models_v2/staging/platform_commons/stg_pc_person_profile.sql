@@ -5,25 +5,23 @@ with raw as (
 )
 
 select
-    id as person_profile_id,
+    id::bigint as person_profile_id,
     
-    "firstName" as first_name,
-    "lastName" as last_name,
+    "firstName"::text as first_name,
+    "lastName"::text as last_name,
     
-    "dateOfBirth" as date_of_birth,
-    "genderIdentifier" as gender_identifier,
-    "genderDataCode" as gender_data_code,
+    "dateOfBirth"::text as date_of_birth,
+    "genderIdentifier"::text as gender_identifier,
+    "genderDataCode"::text as gender_data_code,
     
-    "currentProfessionalStatus" as current_professional_status,
-    "currentlyStudying" as currently_studying,
-    "currentlyWorking" as currently_working,
+    "currentProfessionalStatus"::text as current_professional_status,
     occupation,
-    "areaOfSpecialization" as area_of_specialization,
+    "areaOfSpecialization"::text as area_of_specialization,
     
-    "createdDateTime" as created_datetime,
-    "updatedDateTime" as updated_datetime,
+    "createdDateTime"::timestamp as created_datetime,
+    "updatedDateTime"::timestamp as updated_datetime,
     
-    "xIsDeleted" as is_deleted
+    "xIsDeleted"::boolean as is_deleted
 
 from raw
 where "xIsDeleted" is false or "xIsDeleted" is null
