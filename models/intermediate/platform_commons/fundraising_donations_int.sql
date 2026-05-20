@@ -20,7 +20,6 @@ SELECT
     "fundraiserName" AS fundraiser_name,
     "payment_status" AS payment_status,
     "totalAmountPaid" AS total_amount_paid,
-    "payment_campaign" AS payment_campaign,
 
     CASE
         WHEN "UserUpdatedDateTime" ~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
