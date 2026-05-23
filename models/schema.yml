@@ -232,6 +232,22 @@ sources:
         identifier: child_removal_log
         description: Bubble child removal log data
         loaded_at_field: _airbyte_extracted_at
+      - name: academic_year
+        identifier: academic_year
+        description: Bubble academic year master data
+        loaded_at_field: _airbyte_extracted_at
+      - name: school_academic_year
+        identifier: school_academic_year
+        description: Bubble school and academic year relationship data
+        loaded_at_field: _airbyte_extracted_at
+      - name: school_holiday
+        identifier: school_holiday
+        description: Bubble school holiday data
+        loaded_at_field: _airbyte_extracted_at
+      - name: school_session_detail
+        identifier: school_session_detail
+        description: Bubble school session detail data
+        loaded_at_field: _airbyte_extracted_at
 
 models:
   - name: school_data_comparison
