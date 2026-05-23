@@ -1,23 +1,18 @@
 {{ config(materialized='table') }}
 
-with raw_slot as (
-    select * from {{ source('bubble_staging', 'slot') }}
+with raw_school_academic_year as (
+    select * from {{ source('bubble_staging', 'school_academic_year') }}
 )
 select
-    raw.slot_id,
-    raw.slot_name,
-    raw.academic_year,
-    raw.day_of_week,
-    raw.start_time,
-    raw.end_time,
-    raw.reccuring,
+    raw.school_academic_year_id,
+    raw.academic_year_id,
     raw.school_id,
     raw.is_active,
     raw.removed,
-    raw.school_academic_year_id,
+    raw."Created_By" as created_by,
     raw."Created_Date" as created_date,
     raw."Modified_Date" as modified_date,
     raw."_airbyte_raw_id",
     raw."_airbyte_extracted_at",
     raw."_airbyte_meta"
-from raw_slot raw
+from raw_school_academic_year raw
