@@ -286,22 +286,22 @@ LEFT JOIN community_organizers co
 
 -- Join with active children count
 LEFT JOIN active_children ac
-    ON cps.partner_id::numeric = ac.school_id::numeric
+    ON cps.partner_id::integer = ac.school_id
 
 -- Join with dropped children count
 LEFT JOIN dropped_children dc
-    ON cps.partner_id::numeric = dc.school_id::numeric
+    ON cps.partner_id::integer = dc.school_id
 
 -- Join with actual dropped children count
 LEFT JOIN actual_dropped_children adc
-    ON cps.partner_id::numeric = adc.school_id::numeric
+    ON cps.partner_id::integer = adc.school_id
 
 UNION ALL
 
 -- Schools in Bubble but not in CRM
 SELECT
     -- Partner Information (use school ID and name from Bubble)
-    bp.partner_id1::integer::text AS "Partner ID",
+    bp.partner_id1::text AS "Partner ID",
     bp.partner_name AS "Partner Name",
 
     -- Community Organizer Details (NULL for Bubble-only schools)
@@ -338,19 +338,19 @@ FROM {{ ref('partner_int') }} bp
 
 -- Join with active children count
 LEFT JOIN active_children ac
-    ON bp.partner_id1::numeric = ac.school_id::numeric
+    ON bp.partner_id1 = ac.school_id
 
 -- Join with dropped children count
 LEFT JOIN dropped_children dc
-    ON bp.partner_id1::numeric = dc.school_id::numeric
+    ON bp.partner_id1 = dc.school_id
 
 -- Join with actual dropped children count
 LEFT JOIN actual_dropped_children adc
-    ON bp.partner_id1::numeric = adc.school_id::numeric
+    ON bp.partner_id1 = adc.school_id
 
 -- Exclude schools that are already in CRM (by partner_id match)
 LEFT JOIN partners p
-    ON bp.partner_id1::integer::text = p.partner_id::text
+    ON bp.partner_id1::text = p.partner_id
 
 WHERE p.partner_id IS NULL  -- Only include schools not in CRM
   AND bp.partner_name IS NOT NULL

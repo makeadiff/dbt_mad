@@ -54,7 +54,7 @@ JOIN {{ ref('child_class_section_int') }} ccs
 JOIN {{ ref('child_int') }} ch
   ON ccs.child_id = ch.child_id
 JOIN {{ ref('partners_int') }} p
-  ON cs.school_id = p.id::numeric
+  ON cs.school_id::text = p.id
 -- We include both removed = TRUE/FALSE → for historical + active
 WHERE
   scs.removed = FALSE

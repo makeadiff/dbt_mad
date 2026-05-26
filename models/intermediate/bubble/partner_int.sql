@@ -4,8 +4,8 @@ with raw_partner as (
     select * from {{ source('bubble_staging', 'partner') }}
 )
 select
-    raw."_id" as partner_id,
-    raw.partner_id as partner_id1,
+    raw."_id"                               as partner_id,   -- Bubble _id (alphanumeric text)
+    raw.partner_id::integer                 as partner_id1,  -- numeric partner ID
     raw.partner_name,
     raw.city,
     raw.state,
@@ -15,9 +15,9 @@ select
     raw.address_line_1,
     raw.address_line_2,
     raw.school_type,
-    raw.classes as classes_list,
+    raw.classes                             as classes_list,
     raw.co_name,
-    raw.co_id as co_id_user,
+    raw.co_id                               as co_id_user,
     raw.poc_name,
     raw.poc_email,
     raw.poc_contact,
@@ -36,9 +36,9 @@ select
     raw.latest_conversion_stage,
     raw.partner_removed,
     raw.removed,
-    raw."Created_By" as created_by,
-    raw."Created_Date" as created_date,
-    raw."Modified_Date" as modified_date,
+    raw."Created_By"                        as created_by,
+    raw."Created_Date"                      as created_date,
+    raw."Modified_Date"                     as modified_date,
     raw."_airbyte_raw_id",
     raw."_airbyte_extracted_at",
     raw."_airbyte_meta"
