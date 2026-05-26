@@ -105,12 +105,12 @@ volunteers_assigned_to_class AS (
         cs.school_id,
         COUNT(DISTINCT scsv.volunteer_id) AS volunteers_assigned_to_class
     FROM {{ ref('slot_class_section_volunteer_int') }} scsv
-    INNER JOIN {{ ref('slot_class_section_int') }} scs 
+    INNER JOIN {{ ref('slot_class_section_int') }} scs
         ON scsv.slot_class_section_id = scs.slot_class_section_id
-    INNER JOIN {{ ref('class_section_int') }} cs 
+    INNER JOIN {{ ref('class_section_int') }} cs
         ON scs.class_section_id = cs.class_section_id
-    WHERE scsv.removed = false 
-      AND scs.removed = false 
+    WHERE scsv.removed = false
+      AND scs.removed = false
       AND cs.removed = false
     GROUP BY cs.school_id
 ),
@@ -160,10 +160,10 @@ class_volunteer_summary AS (
         COUNT(DISTINCT scsv.volunteer_id) FILTER (WHERE scsv.removed = false) AS volunteer_count
     FROM {{ ref('slot_class_section_int') }} scs
     JOIN {{ ref('class_section_int') }} cs
-      ON scs.class_section_id = cs.class_section_id
+      ON scs.class_section_id::text = cs.class_section_id::text
     -- Only include class sections that have at least one child (to match class_sections_with_children)
     JOIN {{ ref('child_class_section_int') }} ccs
-      ON ccs.class_section_id = cs.class_section_id
+      ON ccs.class_section_id::text = cs.class_section_id::text
       AND (ccs.removed_boolean IS NULL OR ccs.removed_boolean = false)
     LEFT JOIN {{ ref('slot_class_section_volunteer_int') }} scsv
       ON scs.slot_class_section_id = scsv.slot_class_section_id
@@ -185,7 +185,7 @@ unscheduled_class_sections AS (
     FROM {{ ref('class_section_int') }} cs
     -- Only include class sections that have at least one child
     JOIN {{ ref('child_class_section_int') }} ccs
-        ON ccs.class_section_id = cs.class_section_id
+        ON ccs.class_section_id::text = cs.class_section_id::text
         AND (ccs.removed_boolean IS NULL OR ccs.removed_boolean = false)
     LEFT JOIN {{ ref('slot_class_section_int') }} scs
         ON scs.class_section_id = cs.class_section_id
@@ -368,52 +368,52 @@ INNER JOIN latest_agreements la
     ON ap.partner_id::text = la.partner_id::text
 
 -- Join MOU details
-LEFT JOIN mou_details md 
-    ON md.school_id = ap.partner_id::numeric
+LEFT JOIN mou_details md
+    ON md.school_id::text = ap.partner_id
 
 -- Join CO details
-LEFT JOIN co_details cd 
+LEFT JOIN co_details cd
     ON cd.co_id = ap.co_user_id
 
 -- Join volunteer counts (assigned to school)
-LEFT JOIN volunteer_counts vc 
-    ON vc.school_id = ap.partner_id::numeric
+LEFT JOIN volunteer_counts vc
+    ON vc.school_id::text = ap.partner_id
 
 -- Join volunteers assigned to class
-LEFT JOIN volunteers_assigned_to_class vac 
-    ON vac.school_id = ap.partner_id::numeric
+LEFT JOIN volunteers_assigned_to_class vac
+    ON vac.school_id::text = ap.partner_id
 
 -- Join current slot counts
-LEFT JOIN current_slot_counts csc 
-    ON csc.school_id = ap.partner_id::numeric
+LEFT JOIN current_slot_counts csc
+    ON csc.school_id::text = ap.partner_id
 
 -- Join current class counts
-LEFT JOIN current_class_counts ccc 
-    ON ccc.school_id = ap.partner_id::numeric
+LEFT JOIN current_class_counts ccc
+    ON ccc.school_id::text = ap.partner_id
 
 -- Join classes with 1 volunteer
-LEFT JOIN classes_with_1_volunteer c1v 
-    ON c1v.school_id = ap.partner_id::numeric
+LEFT JOIN classes_with_1_volunteer c1v
+    ON c1v.school_id::text = ap.partner_id
 
 -- Join classes with 2 volunteers
-LEFT JOIN classes_with_2_volunteers c2v 
-    ON c2v.school_id = ap.partner_id::numeric
+LEFT JOIN classes_with_2_volunteers c2v
+    ON c2v.school_id::text = ap.partner_id
 
-LEFT JOIN unscheduled_class_section_counts c0v 
-    ON c0v.school_id = ap.partner_id::numeric
+LEFT JOIN unscheduled_class_section_counts c0v
+    ON c0v.school_id::text = ap.partner_id
 
 
 -- Join scheduled class sections counts
 LEFT JOIN scheduled_class_sections scheduled_cs
-    ON scheduled_cs.school_id = ap.partner_id::numeric
+    ON scheduled_cs.school_id::text = ap.partner_id
 
 -- Join class sections with children counts
 LEFT JOIN class_sections_with_children csc_children
-    ON csc_children.school_id = ap.partner_id::numeric
+    ON csc_children.school_id::text = ap.partner_id
 
 -- Join average slot duration
-LEFT JOIN average_slot_duration asd 
-    ON asd.school_id = ap.partner_id::numeric
+LEFT JOIN average_slot_duration asd
+    ON asd.school_id::text = ap.partner_id
 
 -- Order by partner name
 ORDER BY ap.partner_name

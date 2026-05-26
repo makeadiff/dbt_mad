@@ -57,7 +57,7 @@ from school_volunteer svi
 
 -- volunteer master data
 inner join user_data ud
-    on svi.volunteer_id = ud.user_id::numeric
+    on svi.volunteer_id::text = ud.user_id::text
 
 -- school / partner details
 inner join partner_data pi

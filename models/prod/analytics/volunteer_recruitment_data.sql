@@ -118,12 +118,12 @@ volunteers_assigned_to_class AS (
         cs.school_id,
         COUNT(DISTINCT scsv.volunteer_id) AS volunteers_assigned_to_class
     FROM {{ ref('slot_class_section_volunteer_int') }} scsv
-    INNER JOIN {{ ref('slot_class_section_int') }} scs 
+    INNER JOIN {{ ref('slot_class_section_int') }} scs
         ON scsv.slot_class_section_id = scs.slot_class_section_id
-    INNER JOIN {{ ref('class_section_int') }} cs 
+    INNER JOIN {{ ref('class_section_int') }} cs
         ON scs.class_section_id = cs.class_section_id
-    WHERE scsv.removed = false 
-      AND scs.removed = false 
+    WHERE scsv.removed = false
+      AND scs.removed = false
       AND cs.removed = false
     GROUP BY cs.school_id
 ),
@@ -145,7 +145,7 @@ volunteer_recruitment_targets AS (
         cs.school_id,
         CEIL(COUNT(DISTINCT scs.slot_id) * (2.0 / 5.0) * COALESCE(ac.active_child_count, 0))::integer AS volunteer_recruitment_target
     FROM {{ ref('slot_class_section_int') }} scs
-    INNER JOIN {{ ref('class_section_int') }} cs 
+    INNER JOIN {{ ref('class_section_int') }} cs
         ON scs.class_section_id = cs.class_section_id
     LEFT JOIN active_children ac
         ON cs.school_id = ac.school_id
@@ -214,16 +214,16 @@ LEFT JOIN co_details cd
     ON cd.co_id = ap.co_user_id
 
 -- Join volunteer counts (assigned to school)
-LEFT JOIN volunteer_counts vc 
-    ON vc.school_id = ap.partner_id::numeric
+LEFT JOIN volunteer_counts vc
+    ON vc.school_id::text = ap.partner_id
 
 -- Join volunteers assigned to class
-LEFT JOIN volunteers_assigned_to_class vac 
-    ON vac.school_id = ap.partner_id::numeric
+LEFT JOIN volunteers_assigned_to_class vac
+    ON vac.school_id::text = ap.partner_id
 
 -- Join volunteer recruitment targets
-LEFT JOIN volunteer_recruitment_targets vrt 
-    ON vrt.school_id = ap.partner_id::numeric
+LEFT JOIN volunteer_recruitment_targets vrt
+    ON vrt.school_id::text = ap.partner_id
 
 -- Order by partner name
 ORDER BY ap.partner_name
