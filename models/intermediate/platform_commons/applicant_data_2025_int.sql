@@ -58,6 +58,7 @@ SELECT
     "SelectedForParentWorkNode" AS selected_for_parent_work_node,
     "CodeOfConductPolicyAccepted" AS code_of_conduct_policy_accepted,
     "ChildProtectionPolicyAccepted" AS child_protection_policy_accepted,
-    "SelectedForParentWorkNodeType" AS selected_for_parent_work_node_type
+    "SelectedForParentWorkNodeType" AS selected_for_parent_work_node_type,
+    "ReferrerCampaignCode" AS referrer_campaign_code
 
 FROM {{ source('source_platform_commons', 'applicant_data_2025_int') }}

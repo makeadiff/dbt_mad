@@ -14,7 +14,7 @@ renamed as (
     "Email"::text as email,
     "State"::text as state,
     "Center"::text as center,
-    "UserId"::text as user_id,
+    "UserId"::numeric::bigint::text as user_id,
     "AddedBy"::text as added_by,
     "Contact"::text as contact,
     "UserRole"::text as user_role,
