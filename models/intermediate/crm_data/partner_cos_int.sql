@@ -18,7 +18,7 @@ deduplicated AS (
 SELECT
    id::text,
    partner_id::text,
-   co_id::text,
+   co_id::numeric::bigint::text as co_id,
    "createdAt" AS created_at,
    "updatedAt" AS updated_at,
    _airbyte_raw_id,
