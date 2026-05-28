@@ -38,5 +38,6 @@ models:
   elementary:
     ## elementary models will be created in the schema '<your_schema>_elementary'
     +schema: "elementary"
+    +on_schema_change: "append_new_columns"
     ## To disable elementary for dev, uncomment this:
     # enabled: "{{ target.name in ['prod','analytics'] }}"
