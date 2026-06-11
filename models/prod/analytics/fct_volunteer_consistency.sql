@@ -167,3 +167,4 @@ SELECT
     ELSE 'Unhealthy'
   END AS consistency_status
 FROM volunteer_aggregated
+ORDER BY chapter_id, consistency_status

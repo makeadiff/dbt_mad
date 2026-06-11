@@ -54,6 +54,5 @@ JOIN {{ ref('partners_int') }} p
 WHERE
   scs.removed = FALSE
   AND cs.removed = FALSE
-  AND cs.is_active = TRUE
   AND p.removed = FALSE
   AND ccs.removed_boolean = FALSE
