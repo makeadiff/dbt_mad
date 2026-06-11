@@ -99,3 +99,4 @@ SELECT
     ELSE 'Unhealthy'
   END AS consistency_status
 FROM child_aggregated
+ORDER BY chapter_id, consistency_status

@@ -150,11 +150,11 @@ SELECT
     1
   ) AS pct_sessions_happened,
   ROUND(
-    SUM(sm.original_sessions)::numeric / NULLIF(SUM(sm.planned_sessions), 0) * 100,
+    SUM(sm.original_sessions)::numeric / NULLIF(SUM(sm.sessions_happened), 0) * 100,
     1
   ) AS pct_original_sessions,
   ROUND(
-    SUM(sm.substitute_sessions)::numeric / NULLIF(SUM(sm.planned_sessions), 0) * 100,
+    SUM(sm.substitute_sessions)::numeric / NULLIF(SUM(sm.sessions_happened), 0) * 100,
     1
   ) AS pct_substitute_sessions,
   ROUND(

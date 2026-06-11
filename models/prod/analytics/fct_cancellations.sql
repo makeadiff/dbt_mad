@@ -87,8 +87,8 @@ cancelled_dates AS (
   FROM planned_dates pd
   INNER JOIN {{ ref('school_holiday_int') }} sh
     ON pd.school_id = sh.school_id
-    AND pd.planned_date >= sh.start_date::date
-    AND pd.planned_date <= sh.end_date::date
+    AND pd.planned_date >= (sh.start_date::timestamptz AT TIME ZONE 'Asia/Kolkata')::date
+    AND pd.planned_date <= (sh.end_date::timestamptz AT TIME ZONE 'Asia/Kolkata')::date
     AND sh.removed = FALSE
   ORDER BY
     pd.slot_class_section_id,
@@ -101,7 +101,7 @@ cancellations_per_section AS (
     slot_class_section_id,
     academic_year,
     COUNT(*) AS total_cancellations,
-    STRING_AGG(DISTINCT holiday_reason, ', ' ORDER BY holiday_reason) AS cancellation_reasons
+    STRING_AGG(DISTINCT holiday_reason, '; ' ORDER BY holiday_reason) AS cancellation_reasons
   FROM cancelled_dates
   GROUP BY
     slot_class_section_id,
