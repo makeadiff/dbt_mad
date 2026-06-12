@@ -92,7 +92,7 @@ sessions_happened_per_section AS (
 
 chapter_dimensions AS (
   SELECT DISTINCT ON (chapter_id)
-    chapter_id AS partner_id,
+    chapter_id::text AS partner_id,
     chapter_name,
     city_name,
     co_name,
@@ -104,6 +104,32 @@ chapter_dimensions AS (
     chapter_id,
     validation_status DESC,
     _airbyte_extracted_at DESC
+),
+
+-- NOTE: Currently filtered to E2 schools only.
+-- TODO: When E1 attendance data is integrated (different source system),
+-- remove the engine filter and add 'engine' as a column in the final SELECT
+-- so the dashboard can filter by engine (E1/E2) via a dashboard-level filter.
+chapter_academic_years AS (
+  SELECT
+    mm.chapter_id::text AS partner_id,
+    ay.label AS academic_year
+  FROM (
+    SELECT DISTINCT ON (chapter_id)
+      chapter_id,
+      chapter_status,
+      engine
+    FROM {{ ref('master_mapping_sheet_int') }}
+    WHERE chapter_id IS NOT NULL
+    ORDER BY
+      chapter_id,
+      validation_status DESC,
+      _airbyte_extracted_at DESC
+  ) mm
+  CROSS JOIN {{ ref('academic_year_int') }} ay
+  WHERE
+    mm.chapter_status = 'Active'
+    AND mm.engine = 'E2'
 ),
 
 section_metrics AS (
@@ -124,53 +150,69 @@ section_metrics AS (
   LEFT JOIN {{ ref('fct_cancellations') }} c
     ON p.slot_class_section_id = c.slot_class_section_id
     AND p.academic_year = c.academic_year
+),
+
+section_metrics_agg AS (
+  SELECT
+    sm.partner_id::text AS partner_id,
+    sm.academic_year,
+    SUM(sm.planned_sessions) AS total_planned_sessions,
+    SUM(sm.sessions_happened) AS total_sessions_happened,
+    SUM(sm.original_sessions) AS total_original_sessions,
+    SUM(sm.substitute_sessions) AS total_substitute_sessions,
+    GREATEST(
+      SUM(sm.planned_sessions)
+        - SUM(sm.sessions_happened)
+        - SUM(sm.total_cancellations),
+      0
+    ) AS total_absenteeism,
+    SUM(sm.total_cancellations) AS total_cancellations,
+    ROUND(
+      SUM(sm.sessions_happened)::numeric / NULLIF(SUM(sm.planned_sessions), 0) * 100,
+      1
+    ) AS pct_sessions_happened,
+    ROUND(
+      SUM(sm.original_sessions)::numeric / NULLIF(SUM(sm.sessions_happened), 0) * 100,
+      1
+    ) AS pct_original_sessions,
+    ROUND(
+      SUM(sm.substitute_sessions)::numeric / NULLIF(SUM(sm.sessions_happened), 0) * 100,
+      1
+    ) AS pct_substitute_sessions,
+    ROUND(
+      SUM(sm.total_cancellations)::numeric / NULLIF(SUM(sm.planned_sessions), 0) * 100,
+      1
+    ) AS pct_cancellations,
+    STRING_AGG(DISTINCT sm.cancellation_reasons, '; ' ORDER BY sm.cancellation_reasons)
+      AS cancellation_reasons
+  FROM section_metrics sm
+  GROUP BY
+    sm.partner_id::text,
+    sm.academic_year
 )
 
 SELECT
-  sm.partner_id,
+  cay.partner_id,
   cd.chapter_name,
   cd.city_name,
   cd.co_name,
   cd.engine,
   cd.chapter_status,
-  sm.academic_year,
-  SUM(sm.planned_sessions) AS total_planned_sessions,
-  SUM(sm.sessions_happened) AS total_sessions_happened,
-  SUM(sm.original_sessions) AS total_original_sessions,
-  SUM(sm.substitute_sessions) AS total_substitute_sessions,
-  GREATEST(
-    SUM(sm.planned_sessions)
-      - SUM(sm.sessions_happened)
-      - SUM(sm.total_cancellations),
-    0
-  ) AS total_absenteeism,
-  COALESCE(SUM(sm.total_cancellations), 0) AS total_cancellations,
-  ROUND(
-    SUM(sm.sessions_happened)::numeric / NULLIF(SUM(sm.planned_sessions), 0) * 100,
-    1
-  ) AS pct_sessions_happened,
-  ROUND(
-    SUM(sm.original_sessions)::numeric / NULLIF(SUM(sm.sessions_happened), 0) * 100,
-    1
-  ) AS pct_original_sessions,
-  ROUND(
-    SUM(sm.substitute_sessions)::numeric / NULLIF(SUM(sm.sessions_happened), 0) * 100,
-    1
-  ) AS pct_substitute_sessions,
-  ROUND(
-    SUM(sm.total_cancellations)::numeric / NULLIF(SUM(sm.planned_sessions), 0) * 100,
-    1
-  ) AS pct_cancellations,
-  STRING_AGG(DISTINCT sm.cancellation_reasons, '; ' ORDER BY sm.cancellation_reasons)
-    AS cancellation_reasons
-FROM section_metrics sm
+  cay.academic_year,
+  sma.total_planned_sessions,
+  sma.total_sessions_happened,
+  sma.total_original_sessions,
+  sma.total_substitute_sessions,
+  sma.total_absenteeism,
+  sma.total_cancellations,
+  sma.pct_sessions_happened,
+  sma.pct_original_sessions,
+  sma.pct_substitute_sessions,
+  sma.pct_cancellations,
+  sma.cancellation_reasons
+FROM chapter_academic_years cay
 LEFT JOIN chapter_dimensions cd
-  ON sm.partner_id::text = cd.partner_id
-GROUP BY
-  sm.partner_id,
-  cd.chapter_name,
-  cd.city_name,
-  cd.co_name,
-  cd.engine,
-  cd.chapter_status,
-  sm.academic_year
+  ON cay.partner_id = cd.partner_id
+LEFT JOIN section_metrics_agg sma
+  ON cay.partner_id = sma.partner_id
+  AND cay.academic_year = sma.academic_year
