@@ -114,9 +114,22 @@ chapter_dimensions AS (
 
 chapter_academic_years AS (
   SELECT
-    partner_id::text AS chapter_id,
-    academic_year
-  FROM {{ ref('fct_sessions_summary') }}
+    mm.chapter_id::text AS chapter_id,
+    ay.label AS academic_year
+  FROM (
+    SELECT DISTINCT ON (chapter_id)
+      chapter_id
+    FROM {{ ref('master_mapping_sheet_int') }}
+    WHERE
+      chapter_id IS NOT NULL
+      AND chapter_status = 'Active'
+      AND engine = 'E2'
+    ORDER BY
+      chapter_id,
+      validation_status DESC,
+      _airbyte_extracted_at DESC
+  ) mm
+  CROSS JOIN {{ ref('academic_year_int') }} ay
 )
 
 SELECT
