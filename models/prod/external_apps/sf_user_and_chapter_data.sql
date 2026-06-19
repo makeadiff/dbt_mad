@@ -9,6 +9,7 @@ WITH deduped AS (
     chapter_id,
     chapter_name,
     co_id,
+    engine,
     co_name,
     cho_id,
     cho_name,
@@ -36,6 +37,7 @@ SELECT
   cho_id,
   cho_name,
   status,
+  engine,
   fundraiser_id,
   fundraiser_name,
   area
