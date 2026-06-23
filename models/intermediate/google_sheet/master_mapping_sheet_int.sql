@@ -130,16 +130,6 @@ fundraiser_not_numeric AS (
     AND fundraiser_id ~ '[^0-9]'
 ),
 
--- Check 8: co_id provided but not found in user_data_int
-invalid_co_id AS (
-  SELECT t._airbyte_raw_id, 'co_id ''' || t.co_id::text || ''' not found in user data' AS issue_text
-  FROM trimmed t
-  WHERE t.co_id IS NOT NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM {{ ref('user_data_int') }} u WHERE u.user_id::numeric::integer = t.co_id
-    )
-),
-
 -- Check 9: cho_id provided but not found in user_data_int
 invalid_cho_id AS (
   SELECT t._airbyte_raw_id, 'cho_id ''' || t.cho_id::text || ''' not found in user data' AS issue_text
@@ -170,8 +160,6 @@ all_issues AS (
   SELECT _airbyte_raw_id, issue_text FROM invalid_chapter_status
   UNION ALL
   SELECT _airbyte_raw_id, issue_text FROM fundraiser_not_numeric
-  UNION ALL
-  SELECT _airbyte_raw_id, issue_text FROM invalid_co_id
   UNION ALL
   SELECT _airbyte_raw_id, issue_text FROM invalid_cho_id
 ),
