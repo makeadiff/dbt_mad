@@ -18,4 +18,4 @@ SELECT
   chapter_validation,
   fundraiser_name
 FROM {{ ref('master_mapping_sheet_int') }}
-WHERE validation_status = true
+WHERE chapter_validation = true
