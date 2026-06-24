@@ -66,7 +66,7 @@ SELECT
   cs.section_name,
   p.id AS partner_id,
   p.partner_name,
-  ud.user_id,
+  ud.user_id_number::text AS user_id,
   ud.user_display_name,
   s.day_of_week,
   s.slot_name,
@@ -84,8 +84,8 @@ JOIN scs_deduped scs
   ON scsv.slot_class_section_id = scs.slot_class_section_id
 JOIN {{ ref('class_section_int') }} cs
   ON scs.class_section_id = cs.class_section_id
-LEFT JOIN {{ ref('user_data_int') }} ud
-  ON scsv.volunteer_id::text = ud.user_id
+LEFT JOIN {{ ref('user_int') }} ud
+  ON scsv.volunteer_id = ud.user_id_number
 JOIN {{ ref('slot_int') }} s
   ON scs.slot_id = s.slot_id
 LEFT JOIN {{ ref('school_academic_year_int') }} say
@@ -96,8 +96,7 @@ LEFT JOIN {{ ref('school_session_detail_int') }} ssd
   ON say.school_academic_year_id = ssd.school_academic_year_id
   AND cs.school_id = ssd.school_id
   AND ssd.removed = FALSE
-JOIN {{ ref('partners_int') }} p
+LEFT JOIN {{ ref('partners_int') }} p
   ON cs.school_id::text = p.id
 WHERE
-  cs.removed = FALSE
-  AND p.removed = FALSE
+  p.id IS NOT NULL
