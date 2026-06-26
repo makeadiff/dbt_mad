@@ -52,7 +52,7 @@ sources:
       - name: optionName
       - name: options_optionName_bridge
       - name: iE
-      - name: childQuestions
+      - name: question
       - name: communityMember
       - name: opportunity
       - name: opportunityApplicant
@@ -91,6 +91,7 @@ sources:
       - name: course
       - name: address
       - name: worknode
+      - name: worknodeHierarchy
       - name: personContacts
       - name: contact
       - name: person_personContacts_bridge
@@ -108,3 +109,17 @@ sources:
       - name: retentionFormResponse
       - name: userRoleHierarchy
       - name: state
+      - name: totalWorkExperience
+      - name: tip
+      - name: finalAmount
+      - name: opportunityFundraiser
+      - name: scLevelBatchEvents
+      - name: scLevelBatch_scLevelBatchEvents_bridge
+      - name: worknodeSlotShift_worknodeSlotShiftUserList_bridge
+      - name: worknodeSlotShiftUserList
+      - name: worknodeSlotShiftList
+      - name: worknodeSlot_worknodeSlotShiftList_bridge
+      - name: workforce
+      - name: reasons
+      - name: retentionFormResponse_reasons_bridge
+

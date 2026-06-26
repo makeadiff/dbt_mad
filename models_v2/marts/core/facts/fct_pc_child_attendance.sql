@@ -8,5 +8,10 @@ select
     "ChildAttendanceStatus" as attendance_status,
     "ScheduledSessionDate" as session_date,
     "SubjectCode" as subject_code,
-    feedback_json
+    feedback_json,
+    did_actively_participate,
+    did_understand_concepts,
+    did_complete_assigned_task,
+    additional_notes,
+    reason_for_the_childs_absence
 from {{ ref('int_pc_child_attendance') }}

@@ -24,6 +24,19 @@ select
     confirmed_child_count,
     is_removed,
     created_date,
-    modified_date
+    modified_date,
+    created_by as partner_created_by,
+    co_id_user as partner_co_id_user,
+    mou_url,
+    city_id as partner_city_id,
+    poc_email,
+    state_id as partner_state_id,
+    classes_list,
+    partner_id1,
+    poc_contact,
+    poc_designation,
+    date_of_first_contact,
+    low_income_resource,
+    partner_affiliation_type
 from {{ ref('int_bubble__partner') }}
 where is_removed = false

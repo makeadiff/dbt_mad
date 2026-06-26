@@ -6,6 +6,7 @@
 select
     volunteer_sk,
     volunteer_id,
+    user_id,
     user_display_name as volunteer_name,
     user_role,
     authentication,

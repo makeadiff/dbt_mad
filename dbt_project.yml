@@ -40,3 +40,31 @@ models:
     +schema: "elementary"
     ## To disable elementary for dev, uncomment this:
     # enabled: "{{ target.name in ['prod','analytics'] }}"
+  
+  dbt_mad:
+    bronze:
+      +materialized: view          # lightweight, no storage cost
+      bubble:
+        +schema: bronze_bubble
+      crm:
+        +schema: bronze_crm
+      platform_commons:
+        +schema: bronze_platform_commons
+    silver:
+      +materialized: table         # persisted for join performance
+      bubble:
+        +schema: silver_bubble
+      crm:
+        +schema: silver_crm
+      platform_commons:
+        +schema: silver_platform_commons
+    marts:
+      core:
+        +materialized: table       # persisted for query performance
+        +schema: gold_marts        # dim and fct models belong to gold marts layer
+    gold:
+      +materialized: table
+      analytics:
+        +schema: gold_analytics
+      external_apps:
+        +schema: gold_external_apps

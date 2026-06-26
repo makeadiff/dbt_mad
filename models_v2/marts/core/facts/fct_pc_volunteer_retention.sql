@@ -11,5 +11,6 @@ select
     preferred_role,
     current_work_node_name,
     preferred_work_node_name,
-    retention_sent_date_time
+    retention_sent_date_time,
+    reasons_for_not_continuing
 from {{ ref('int_pc_volunteer_retention') }}

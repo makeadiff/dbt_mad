@@ -20,6 +20,9 @@ select
     p.low_income_resource,
     p.classes,
     p.is_removed,
+    p.city_id,
+    p.state_id,
+    p.created_by,
     p.created_at,
     p.updated_at
 from {{ ref('int_crm__partners') }} p
