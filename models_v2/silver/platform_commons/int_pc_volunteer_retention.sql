@@ -42,7 +42,7 @@ worknode_mapping as (
     select
         a.user_id,
         string_agg(distinct w_center.worknode_name, ',') as current_work_node_name,
-        string_agg(distinct w_center.worknode_type, ',') as current_work_node_type
+        string_agg(distinct {{ clean_prefix('w_center.worknode_type') }}, ',') as current_work_node_type
     from {{ ref('stg_pc_opportunity_applicant') }} a
     left join worknode w_center on a.applied_to_entity_id = w_center.worknode_id
     group by 1
@@ -70,7 +70,7 @@ select
     u.first_name || ' ' || coalesce(u.last_name, '') as full_name,
     r.retention_id,
     rl.current_roles,
-    r.retention_status,
+    {{ clean_prefix('r.retention_status') }} as retention_status,
     u.login as email_address,
     pcd.contact_value as mobile_number,
     f.preferred_role,
@@ -80,7 +80,7 @@ select
     wm.current_work_node_name,
     wm.current_work_node_type,
     w_pref.worknode_name as preferred_work_node_name,
-    w_pref.worknode_type as preferred_work_node_type,
+    {{ clean_prefix('w_pref.worknode_type') }} as preferred_work_node_type,
     r.retention_sent_date as retention_sent_date_time,
     fr.reasons_for_not_continuing
 from retention r

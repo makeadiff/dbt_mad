@@ -29,13 +29,7 @@ roles as (
         user_id,
         string_agg(distinct replace(role_code, 'role.mad.', ''), ',') as roles_played_in_mad,
         string_agg(distinct case when is_deleted is not true then replace(role_code, 'role.mad.', '') end, ',') as current_roles_assigned
-    from (
-        select 
-            "userId"::bigint as user_id, 
-            "roleCode"::text as role_code, 
-            "xIsDeleted"::boolean as is_deleted 
-        from {{ source('pc_raw', 'userRole') }}
-    ) raw_roles
+    from {{ ref('stg_pc_user_role') }}
     where role_code = lower(role_code)
       and role_code not like '%user.administrator%'
     group by 1
@@ -112,7 +106,7 @@ select
     g.gender_label as gender,
     a.user_id,
     a.opportunity_applicant_id as applicant_id,
-    a.current_step_code as current_step,
+    {{ clean_prefix('a.current_step_code') }} as current_step,
     a.date_of_joining as joining_date,
     u.first_name || ' ' || coalesce(u.last_name, '') as applicant_name,
     a.applicant_medium as sourced_medium,
@@ -129,14 +123,14 @@ select
     ) as current_user_type,
     a.applicant_campaign as sourced_campaign,
     r.roles_played_in_mad as roles_played_in_mad,
-    a.application_status,
-    a.current_step_status,
+    {{ clean_prefix('a.application_status') }} as application_status,
+    {{ clean_prefix('a.current_step_status') }} as current_step_status,
     a.application_datetime,
     u.updated_datetime as user_updated_date_time,
     r.current_roles_assigned as current_roles_assigned,
     pcd.contact_value as primary_contact_number,
     w_applied.worknode_name as applied_to_work_node_name,
-    replace(a.applied_to_entity_type, 'WN_TYPE.', '') as applied_to_work_node_type,
+    {{ clean_prefix('a.applied_to_entity_type') }} as applied_to_work_node_type,
     pwd.contact_value as whatsapp_contact_number,
     case
         when twe.experience_value = 0 then '0'
@@ -149,10 +143,10 @@ select
     end as total_years_of_experience,
     cast(null as integer) as numbers_of_feedbacks_given, -- Not stored in pc_raw, computed field
     w_sel_resolved.worknode_name as selected_for_work_node_name,
-    replace(w_sel_resolved.worknode_type, 'WN_TYPE.', '') as selected_for_work_node_type,
+    {{ clean_prefix('w_sel_resolved.worknode_type') }} as selected_for_work_node_type,
     wa.current_work_nodes as current_work_nodes_assigned,
     w_parent.worknode_name as selected_for_parent_work_node,
-    replace(w_parent.worknode_type, 'WN_TYPE.', '') as selected_for_parent_work_node_type
+    {{ clean_prefix('w_parent.worknode_type') }} as selected_for_parent_work_node_type
 from applicant a
 join users u on a.user_id = u.user_id
 left join roles r on a.user_id = r.user_id

@@ -93,9 +93,9 @@ select
     a.user_id as "UserId",
     
     -- Status and Dates
-    a.application_status as "ApplicationStatus",
-    a.current_step_code as "CurrentStep",
-    a.current_step_status as "CurrentStepStatus",
+    {{ clean_prefix('a.application_status') }} as "ApplicationStatus",
+    {{ clean_prefix('a.current_step_code') }} as "CurrentStep",
+    {{ clean_prefix('a.current_step_status') }} as "CurrentStepStatus",
     a.application_datetime as "ApplicationDateTime",
     a.application_submit_datetime as "ApplicationSubmitDateTime",
     u.updated_datetime as "UserUpdatedDateTime",
@@ -110,12 +110,12 @@ select
     -- Profile Demographic
     p.date_of_birth as "DateOfBirth",
     upper(coalesce(nullif(p.gender_identifier, ''), g.gender_label)) as "Gender",
-    p.occupation as "CurrentlyDoing",
+    {{ clean_prefix('p.occupation') }} as "CurrentlyDoing",
     
     -- Location
     addr.city as "City",
     addr.state as "State",
-    addr.country as "Country",
+    {{ clean_prefix('addr.country') }} as "Country",
     addr.pincode as "Pincode",
     m.area_of_residence as "AreaOfResidence",
     
@@ -129,9 +129,9 @@ select
     
     -- Worknode Data Mapped
     w.worknode_name as "SelectedForWorkNodeName",
-    replace(w.worknode_type, 'WN_TYPE.', '') as "SelectedForWorkNodeType",
+    {{ clean_prefix('w.worknode_type') }} as "SelectedForWorkNodeType",
     w_parent.worknode_name as "SelectedForParentWorkNode",
-    replace(w_parent.worknode_type, 'WN_TYPE.', '') as "SelectedForParentWorkNodeType",
+    {{ clean_prefix('w_parent.worknode_type') }} as "SelectedForParentWorkNodeType",
     
     -- Policies (from Meta)
     m.code_of_conduct_policy_accepted as "CodeOfConductPolicyAccepted",

@@ -244,7 +244,11 @@ center_city_mapping as (
       and wh.is_active = true
 )
 
-select
+select distinct on (
+    bs.student_id,
+    ba.attendance_date,
+    ba.batch_attendance_id
+)
     -- Surrogate Keys
     {{ dbt_utils.generate_surrogate_key(['bs.student_id', 'ba.attendance_date', 'ba.batch_attendance_id']) }} as attendance_key,
     {{ dbt_utils.generate_surrogate_key(['bs.student_id']) }} as student_key,
@@ -286,22 +290,22 @@ select
     -- Substitution Details
     sub.substitute_id as "SubstituteId",
     sub.for_user_id as "SubstitutedUserId",
-    sub.request_type as "RequestType",
-    sub.requesting_reason as "Reason",
+    {{ clean_prefix('sub.request_type') }} as "RequestType",
+    {{ clean_prefix('sub.requesting_reason') }} as "Reason",
     
     -- Attendance Status
-    bsa.attendance_status as "ChildAttendanceStatus",
+    {{ clean_prefix('bsa.attendance_status') }} as "ChildAttendanceStatus",
     ba.subject_code as "SubjectCode",
     ba.attendance_date as "ScheduledSessionDate",
     ba.captured_by_user_id as "AttendanceTakenByUserId",
     
     -- Feedback
     af.feedback_json,
-    nullif(af.feedback_json ->> '34237', '')::integer as did_actively_participate,
-    nullif(af.feedback_json ->> '34238', '')::integer as did_understand_concepts,
-    nullif(af.feedback_json ->> '34239', '')::integer as did_complete_assigned_task,
-    nullif(af.feedback_json ->> '34240', '')::text as additional_notes,
-    nullif(af.feedback_json ->> '34244', '')::text as reason_for_the_childs_absence,
+    nullif(af.feedback_json ->> '{{ var("pc_question_did_actively_participate", "34237") }}', '')::integer as did_actively_participate,
+    nullif(af.feedback_json ->> '{{ var("pc_question_did_understand_concepts", "34238") }}', '')::integer as did_understand_concepts,
+    nullif(af.feedback_json ->> '{{ var("pc_question_did_complete_assigned_task", "34239") }}', '')::integer as did_complete_assigned_task,
+    nullif(af.feedback_json ->> '{{ var("pc_question_additional_notes", "34240") }}', '')::text as additional_notes,
+    nullif(af.feedback_json ->> '{{ var("pc_question_reason_for_child_absence", "34244") }}', '')::text as reason_for_the_childs_absence,
     
     -- New columns from gap analysis
     ba.created_datetime as "SlotCreatedDateTime",
@@ -362,3 +366,8 @@ left join tagged_volunteers tv on coalesce(bsm_direct.worknode_slot_shift_id, bs
 left join center_city_mapping ccm on lower(trim(sn.center_name)) = lower(trim(ccm.center_name))
 
 where ba.is_deleted = false
+order by
+    bs.student_id,
+    ba.attendance_date,
+    ba.batch_attendance_id,
+    bsa.batch_student_attendance_id desc nulls last

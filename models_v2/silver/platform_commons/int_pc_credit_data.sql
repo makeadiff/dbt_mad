@@ -58,13 +58,15 @@ worknode_mapping as (
         a.user_id,
         -- Get unique centers
         string_agg(distinct w_center.worknode_name, ',') as tagged_at_name,
-        string_agg(distinct w_center.worknode_type, ',') as tagged_at_type,
-        -- Get unique cities
-        string_agg(distinct w_city.worknode_name, ',') as parent_tagged_at_name,
-        string_agg(distinct w_city.worknode_type, ',') as parent_tagged_at_type
+        string_agg(distinct {{ clean_prefix('w_center.worknode_type') }}, ',') as tagged_at_type,
+        -- Get unique parent worknodes (cities/states) from hierarchy
+        string_agg(distinct w_parent.worknode_name, ',') as parent_tagged_at_name,
+        string_agg(distinct {{ clean_prefix('w_parent.worknode_type') }}, ',') as parent_tagged_at_type
     from opportunity_applicant a
     left join worknode w_center on a.applied_to_entity_id = w_center.worknode_id
-    left join worknode w_city on a.secondary_applied_to_worknode_id = w_city.worknode_id
+    left join {{ ref('stg_pc_worknode_hierarchy') }} wh 
+        on w_center.worknode_id = wh.worknode_id and wh.depth = 1 and wh.is_active = true
+    left join worknode w_parent on wh.parent_worknode_id = w_parent.worknode_id
     where a.user_id is not null
     group by a.user_id
 )

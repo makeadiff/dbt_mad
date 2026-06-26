@@ -234,8 +234,8 @@ select
     -- Substitution Details
     sub.substitute_id as "SubstituteId",
     sub.for_user_id as "SubstitutedUserId",
-    sub.request_type as "RequestType",
-    sub.requesting_reason as "Reason",
+    {{ clean_prefix('sub.request_type') }} as "RequestType",
+    {{ clean_prefix('sub.requesting_reason') }} as "Reason",
     
     -- Session Metadata
     ba.subject_code as "SubjectCode",
@@ -244,7 +244,7 @@ select
     ba.is_active as "SessionActiveStatus",
 
     -- New columns from gap analysis
-    lb.academic_year as "AcademicYear",
+    {{ clean_prefix('lb.academic_year') }} as "AcademicYear",
     u.first_name || ' ' || coalesce(u.last_name, '') as "VolunteerAssigned",
     bi.inactive_reason as "BatchInactiveReason",
     bi.inactive_start_date as "BatchInactiveStartDate",

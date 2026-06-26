@@ -58,16 +58,16 @@ center_city_mapping as (
 -- CITY name via Center -> worknodeHierarchy -> City
 -- One row per slot_shift_id (for_slot_shift_id in attendance)
 slot_center_city as (
-    select distinct on (wss.id)
-        wss.id                          as slot_shift_id,
-        wss."supervisorId"              as supervisor_id,
+    select distinct on (wss.worknode_slot_shift_id)
+        wss.worknode_slot_shift_id      as slot_shift_id,
+        wss.supervisor_id               as supervisor_id,
         sn.center_name                  as center_name,
         ccm.city_name                   as city_name,
         sch.is_active                   as center_active_status
-    from pc_raw."worknodeSlotShift" wss
+    from {{ ref('stg_pc_worknode_slot_shift') }} wss
     -- batch → sc_level_id → school_course → school
     left join {{ ref('stg_pc_sc_level_batch') }} lb
-        on wss."forEntityId" = lb.sc_level_batch_id
+        on wss.for_entity_id = lb.sc_level_batch_id
     left join {{ ref('stg_pc_sc_level_id') }} slit
         on lb.sc_level_id = slit.sc_level_id_table_id
     left join {{ ref('stg_pc_school_course') }} sc
@@ -75,15 +75,15 @@ slot_center_city as (
     left join {{ ref('stg_pc_school') }} sch
         on sc.school_id = sch.school_id
     -- school → school_name (= center_name)
-    left join pc_raw."school_schoolName_bridge" snb
-        on sc.school_id = snb."schoolId"
+    left join {{ ref('stg_pc_school_schoolName_bridge') }} snb
+        on sc.school_id = snb.school_id
     left join {{ ref('stg_pc_school_name') }} sn
-        on snb."schoolNameId" = sn.school_name_id
+        on snb.school_name_id = sn.school_name_id
     left join center_city_mapping ccm
         on lower(trim(sn.center_name)) = lower(trim(ccm.center_name))
-    where wss."forEntityType" = 'LTLD_SCLEVEL_BATCH'
-      and (wss."xIsDeleted" is false or wss."xIsDeleted" is null)
-    order by wss.id, sn.center_name nulls last, ccm.city_name nulls last
+    where wss.for_entity_type = 'LTLD_SCLEVEL_BATCH'
+      and (wss.is_deleted is false or wss.is_deleted is null)
+    order by wss.worknode_slot_shift_id, sn.center_name nulls last, ccm.city_name nulls last
 ),
 
 -- User lookup — reused multiple times as aliases below
@@ -108,7 +108,7 @@ vol_user_map as (
       and (cm."xIsDeleted" is false or cm."xIsDeleted" is null)
 )
 
-select
+select distinct on (a.attendance_id)
     -- Surrogate keys (kept from original model)
     {{ dbt_utils.generate_surrogate_key(['a.attendance_id']) }}                         as volunteer_attendance_key,
     {{ dbt_utils.generate_surrogate_key(['a.for_slot_shift_id', 'a.attendance_date']) }} as session_key,
@@ -145,8 +145,8 @@ select
     true                                                                                as is_attendance_taken_for_tagged_volunteer,
     vol.full_name                                                                       as volunteer_name,
     -- Normalized to match CSV format (strip ATTENDANCE_STATUS. prefix)
-    replace(a.attendance_status, 'ATTENDANCE_STATUS.', '')              as attendance_status,
-    a.zero_attendance_status,
+    {{ clean_prefix('a.attendance_status') }}                                           as attendance_status,
+    {{ clean_prefix('a.zero_attendance_status') }}                                      as zero_attendance_status,
 
     -- ── Substitution Info (sourced from worknodeSlotShiftSubstitute via stg_pc_substitute) ────
     -- byUser  = assignee (who covers the slot)
@@ -156,17 +156,17 @@ select
     s.by_user_id                                                                        as assignee_user_id,
     s.for_user_id                                                                       as substituted_volunteer_user_id,
     subst_vol.full_name                                                                 as substituted_volunteer_user_name,
-    s.request_status,
-    s.request_type                                                                      as substitution_type,
-    s.requesting_reason                                                                 as substitution_reason,
+    {{ clean_prefix('s.request_status') }}                                              as request_status,
+    {{ clean_prefix('s.request_type') }}                                                as substitution_type,
+    {{ clean_prefix('s.requesting_reason') }}                                           as substitution_reason,
 
     -- ── Class Attendance Metadata ────────────────────────────────────────────────
     sc.class_attendance_taken_by_user_id,
     att_taker.full_name                                                                 as class_attendance_taken_by_user_name,
     case
-        when s.substitute_id is not null and replace(s.request_type, 'SLOT_SHIFT_SUBSTITUTE_REQ_TYPE.', '') <> 'CANCELLATION' then
+        when s.substitute_id is not null and {{ clean_prefix('s.request_type') }} <> 'CANCELLATION' then
             case
-                when replace(s.request_type, 'SLOT_SHIFT_SUBSTITUTE_REQ_TYPE.', '') = 'SUBSTITUTE' and sc.class_attendance_taken_by_user_id is not null then 'PRESENT'
+                when {{ clean_prefix('s.request_type') }} = 'SUBSTITUTE' and sc.class_attendance_taken_by_user_id is not null then 'PRESENT'
                 else 'ABSENT'
             end
         else null
@@ -210,3 +210,4 @@ left join user_names att_taker
 -- CENTER + CITY via worknodeSlotShift → school (center) and supervisor → workforce (city)
 left join slot_center_city scc
     on a.for_slot_shift_id = scc.slot_shift_id
+order by a.attendance_id, abs(a.attendance_date::date - sc.scheduled_session_date::date) asc nulls last
