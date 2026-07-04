@@ -3,6 +3,7 @@ version: 2
 sources:
   - name: bubble_raw
     tables:
+      - name: academic_year
       - name: batch_child
       - name: chapter
       - name: chapter_school
@@ -18,7 +19,10 @@ sources:
       - name: co_chapter
       - name: partner
       - name: program
+      - name: school_academic_year
       - name: school_class
+      - name: school_holiday
+      - name: school_session_detail
       - name: school_volunteer
       - name: slot
       - name: slot_class_section
@@ -38,6 +42,10 @@ sources:
       - name: poc_partners
       - name: pocs
       - name: states
+
+  - name: opschapter_google_sheet_raw
+    tables:
+      - name: master_mapping_sheet
 
   - name: pc_raw
     tables:

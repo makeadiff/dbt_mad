@@ -5,8 +5,8 @@ with raw_program as (
 )
 select
     "_id",
-    "program_id_number"::integer as program_id,
-    "program_name_text" as program_name,
+    "program_id"::integer as program_id,
+    "program_name" as program_name,
     "Created_Date"::date as created_date,
     "Modified_Date"::date as modified_date,
     "_airbyte_raw_id",

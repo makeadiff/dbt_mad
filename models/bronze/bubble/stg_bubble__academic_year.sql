@@ -1,17 +1,16 @@
 {{ config(materialized='view') }}
 
-with raw_subject as (
-    select * from {{ source('bubble_raw', 'subject') }}
+with raw_academic_year as (
+    select * from {{ source('bubble_raw', 'academic_year') }}
 )
 select
     "_id",
-    "subject_id"::integer as subject_id,
-    "subject_name" as subject_name,
-    "removed"::boolean as is_removed,
-    "program_id" as program_id,
+    "academic_year_id"::integer as academic_year_id,
+    "label" as label,
+    "is_active"::boolean as is_active,
     "Created_Date"::date as created_date,
     "Modified_Date"::date as modified_date,
     "_airbyte_raw_id",
     "_airbyte_extracted_at"::timestamp as _airbyte_extracted_at,
     "_airbyte_meta"
-from raw_subject
+from raw_academic_year
