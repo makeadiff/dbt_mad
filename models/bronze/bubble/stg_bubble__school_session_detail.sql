@@ -1,17 +1,16 @@
 {{ config(materialized='view') }}
 
 with source as (
-    select * from {{ source('bubble_raw', 'class_section') }}
+    select * from {{ source('bubble_raw', 'school_session_detail') }}
 )
 select
-    "_id",
-    "class_section_id"::integer as class_section_id,
-    "academic_year" as academic_year,
-    "section_name" as section_name,
+    "session_id"::integer as session_id,
+    "school_id" as school_id,
+    "school_academic_year" as school_academic_year_id,
+    "start_date"::date as start_date,
+    "end_date"::date as end_date,
     "removed"::boolean as is_removed,
     "is_active"::boolean as is_active,
-    "school_class_id" as school_class_id,
-    "school_id" as school_id,
     "Created_Date"::date as created_date,
     "Modified_Date"::date as modified_date,
     "_airbyte_raw_id",

@@ -51,6 +51,8 @@ models:
         +schema: bronze_crm
       platform_commons:
         +schema: bronze_platform_commons
+      google_sheet:
+        +schema: bronze_google_sheet
     silver:
       +materialized: table         # persisted for join performance
       bubble:
@@ -59,6 +61,8 @@ models:
         +schema: silver_crm
       platform_commons:
         +schema: silver_platform_commons
+      google_sheet:
+        +schema: silver_google_sheet
     marts:
       core:
         +materialized: table       # persisted for query performance

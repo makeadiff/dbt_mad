@@ -5,10 +5,10 @@ with raw_school_class as (
 )
 select
     "_id",
-    "school_class_id_number"::integer as school_class_id,
-    "class_id_custom_class" as class_id,
-    "school_id_custom_partner" as school_id,
-    "removed_boolean"::boolean as is_removed,
+    "school_class_id"::integer as school_class_id,
+    "class_id" as class_id,
+    "school_id" as school_id,
+    "removed"::boolean as is_removed,
     "Created_Date"::date as created_date,
     "Modified_Date"::date as modified_date,
     "_airbyte_raw_id",

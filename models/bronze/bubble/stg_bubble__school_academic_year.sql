@@ -1,16 +1,14 @@
 {{ config(materialized='view') }}
 
 with source as (
-    select * from {{ source('bubble_raw', 'child_removal_log') }}
+    select * from {{ source('bubble_raw', 'school_academic_year') }}
 )
 select
-    "child_removal_log_id"::integer as child_removal_log_id,
-    "child_id" as child_id,
-    "co_id" as co_id,
-    "other_details" as other_details,
-    "removal_reason" as removal_reason,
-    "removed"::boolean as is_removed,
+    "school_academic_year_id"::integer as school_academic_year_id,
     "school_id" as school_id,
+    "academic_year_id" as academic_year_id,
+    "removed"::boolean as is_removed,
+    "is_active"::boolean as is_active,
     "Created_Date"::date as created_date,
     "Modified_Date"::date as modified_date,
     "_airbyte_raw_id",
