@@ -1,0 +1,4 @@
+interface:
+  display_name: "dbt Model Tests"
+  short_description: "Prompt for PK/FK/nulls, add dbt tests"
+  default_prompt: "Add tests for this dbt model"
