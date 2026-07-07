@@ -10,6 +10,7 @@ select
     "worknodeId"::bigint as worknode_id,
     "roleId"::bigint as role_id,
     "isActive"::boolean as is_active,
+    "xModifiedTimestamp"::timestamp as modified_datetime,
     "xIsDeleted"::boolean as is_deleted
 from raw
 where "xIsDeleted" is false or "xIsDeleted" is null
