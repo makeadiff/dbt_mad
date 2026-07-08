@@ -143,7 +143,8 @@ select
     h.reporting_manager_user_login as "ReportingManagerUserLogin",
 
     u.created_datetime as "UserCreatedDateTime",
-    u.updated_datetime as "UserUpdatedDateTime"
+    u.modified_datetime as "UserUpdatedDateTime",
+    u.is_active as "IsActive"
 
 from users u
 left join role_priority rp on u.user_id = rp.user_id and rp.rn = 1

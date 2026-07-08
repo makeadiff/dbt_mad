@@ -21,7 +21,7 @@ WITH deduped AS (
       PARTITION BY chapter_id
       ORDER BY fundraiser_id ASC
     ) AS rn
-  FROM {{ ref('master_mapping_sheet_int') }}
+  FROM {{ ref('int_google_sheet__chapter_mapping') }}
   WHERE chapter_status = 'Active'
     AND chapter_id IS NOT NULL
     AND fundraiser_id IS NOT NULL
