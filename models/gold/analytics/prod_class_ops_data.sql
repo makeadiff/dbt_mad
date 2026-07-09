@@ -6,9 +6,66 @@
 }}
 
 -- Optimized: Uses shared int models for child/volunteer counts + collapsed class scheduling CTEs
+-- active_partners is built inline (not from int_crm__active_partners, which is shared with other
+-- reports) to preserve old class_ops_data.sql semantics: latest agreement regardless of removed
+-- status, and CO name resolved without a MAD-role requirement.
 
-WITH active_partners AS (
-    SELECT * FROM {{ ref('int_crm__active_partners') }}
+WITH latest_partner_cos AS (
+    SELECT partner_id, co_id AS co_user_id
+    FROM (
+        SELECT
+            partner_id,
+            co_id,
+            ROW_NUMBER() OVER (
+                PARTITION BY partner_id
+                ORDER BY updated_at DESC, created_at DESC, partner_co_id DESC
+            ) AS rn
+        FROM {{ ref('int_crm__partner_cos') }}
+    ) ranked
+    WHERE rn = 1
+),
+
+-- Latest partner agreement per partner (latest row regardless of conversion stage or removed
+-- status) — sourced from int_crm__partner_agreements, not fct_partner_agreements, which
+-- pre-filters is_removed=false before ranking and would pick a different "latest" row.
+latest_agreements AS (
+    SELECT partner_id, conversion_stage, created_at
+    FROM (
+        SELECT
+            partner_id,
+            conversion_stage,
+            created_at,
+            ROW_NUMBER() OVER (
+                PARTITION BY partner_id
+                ORDER BY created_at DESC, partner_agreement_id DESC
+            ) AS rn
+        FROM {{ ref('int_crm__partner_agreements') }}
+    ) ranked
+    WHERE rn = 1
+),
+
+-- CO display name resolved directly from stg_pc_user, not int_pc_user_data, since the latter
+-- requires a qualifying non-applicant MAD role and would drop COs without one.
+co_lookup AS (
+    SELECT
+        user_id,
+        first_name || ' ' || COALESCE(last_name, '') AS co_name
+    FROM {{ ref('stg_pc_user') }}
+),
+
+active_partners AS (
+    SELECT
+        p.crm_partner_id AS partner_id,
+        p.partner_name,
+        pco.co_user_id AS co_id_numeric,
+        col.co_name
+    FROM {{ ref('dim_crm_partner') }} p
+    LEFT JOIN latest_partner_cos pco ON p.crm_partner_id = pco.partner_id
+    JOIN latest_agreements la
+        ON p.crm_partner_id = la.partner_id
+        AND la.conversion_stage = 'converted'
+    LEFT JOIN co_lookup col ON col.user_id = pco.co_user_id
+    WHERE p.is_removed = FALSE
 ),
 
 -- Slot count per school (dim_slot already filters is_removed=false)
@@ -31,7 +88,7 @@ class_scheduling AS (
               THEN cs.class_section_id END)              AS unscheduled_count
     FROM {{ ref('dim_class_section') }} cs
     JOIN {{ ref('bridge_child_class_section') }} ccs
-        ON ccs.class_section_id = cs.class_section_id AND ccs.is_removed = false
+        ON ccs.class_section_id = cs.class_section_id AND (ccs.is_removed IS NULL OR ccs.is_removed = false)
     LEFT JOIN {{ ref('int_bubble__slot_class_section') }} scs
         ON scs.class_section_id = cs.class_section_id AND scs.is_removed = false
     WHERE cs.is_active = true AND cs.school_id IS NOT NULL
@@ -46,7 +103,7 @@ class_volunteer_dist AS (
         COUNT(DISTINCT scsv.volunteer_id) FILTER (WHERE scsv.is_removed = false) AS vol_count
     FROM {{ ref('int_bubble__slot_class_section') }} scs
     JOIN {{ ref('dim_class_section') }} cs ON scs.class_section_id = cs.class_section_id
-    JOIN {{ ref('bridge_child_class_section') }} ccs ON ccs.class_section_id = cs.class_section_id AND ccs.is_removed = false
+    JOIN {{ ref('bridge_child_class_section') }} ccs ON ccs.class_section_id = cs.class_section_id AND (ccs.is_removed IS NULL OR ccs.is_removed = false)
     LEFT JOIN {{ ref('int_bubble__slot_class_section_volunteer') }} scsv ON scs.slot_class_section_id = scsv.slot_class_section_id
     WHERE scs.is_removed = false AND cs.is_active = true AND cs.school_id IS NOT NULL
     GROUP BY cs.school_id, scs.slot_class_section_id

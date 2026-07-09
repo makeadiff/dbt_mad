@@ -17,7 +17,8 @@ select
     
     "createdDateTime"::timestamp as created_datetime,
     "updatedDateTime"::timestamp as updated_datetime,
-    
+    "xModifiedTimestamp"::timestamp as modified_datetime,
+
     "xIsDeleted"::boolean as is_deleted
 
 from raw

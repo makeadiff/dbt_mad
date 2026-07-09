@@ -29,10 +29,10 @@ active_volunteers as (
 
 select
     av.volunteer_id,
-    coalesce(sv.user_display_name, ud."UserDisplayName") as volunteer_name,
-    coalesce(sv.user_login, ud."UserLogin") as volunteer_email,
-    coalesce(sv.user_login, ud."UserLogin") as volunteer_user_login,
-    coalesce(sv.contact_number, ud."Contact") as volunteer_contact,
+    coalesce(sv.user_display_name, ud.user_display_name) as volunteer_name,
+    ud.email as volunteer_email,
+    coalesce(sv.user_login, ud.user_login) as volunteer_user_login,
+    coalesce(sv.contact_number, ud.contact) as volunteer_contact,
     sv.partner_name,
     sv.partner_co_name as co_name,
     sv.partner_city,
@@ -48,7 +48,7 @@ left join school_volunteer sv
     on av.volunteer_id = sv.volunteer_id::numeric
    and sv.removed = false
 left join {{ ref('prod_user_data') }} ud
-    on av.volunteer_id = ud."UserId"::numeric
+    on av.volunteer_id = ud.user_id::numeric
 left join slot_class_section_volunteer scsv
     on scsv.volunteer_id = av.volunteer_id
    and scsv.is_removed = false
