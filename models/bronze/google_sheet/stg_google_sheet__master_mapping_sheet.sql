@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 with raw_master_mapping_sheet as (
     select * from {{ source('opschapter_google_sheet_raw', 'master_mapping_sheet') }}

@@ -20,6 +20,7 @@ joined as (
         raw.end_time,
         raw.is_recurring,
         partner_map.school_id,
+        raw.is_active,
         raw.is_removed,
         raw.created_date,
         raw.modified_date

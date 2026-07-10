@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 with source as (
     select * from {{ source('bubble_raw', 'partner') }}
@@ -35,8 +35,11 @@ select
     "low_income_resource"::boolean as low_income_resource,
     "confirmed_child_count"::integer as confirmed_child_count,
     "partner_affiliation_type" as partner_affiliation_type,
+    "converted"::boolean as converted,
+    "latest_conversion_stage" as latest_conversion_stage,
     "partner_removed"::boolean as is_removed,
     "_airbyte_raw_id",
     "_airbyte_extracted_at"::timestamp as _airbyte_extracted_at,
-    "_airbyte_meta"
+    "_airbyte_meta",
+    "_airbyte_generation_id"
 from source

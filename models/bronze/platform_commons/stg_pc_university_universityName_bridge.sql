@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 with raw as (
     select * from {{ source('pc_raw', 'university_universityName_bridge') }}

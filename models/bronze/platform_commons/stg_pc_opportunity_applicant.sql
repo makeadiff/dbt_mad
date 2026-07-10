@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 with raw as (
     select * from {{ source('pc_raw', 'opportunityApplicant') }}
@@ -27,8 +27,16 @@ select
     "applicationDateTime"::timestamp as application_datetime,
     "applicationSubmitDateTime"::timestamp as application_submit_datetime,
     "currentStepDateTime"::timestamp as current_step_datetime,
-    "applicationCompleteDateTime"::timestamp as application_complete_datetime,
-    "attendanceMarkedOn"::timestamp as attendance_marked_on,
+    case
+        when "applicationCompleteDateTime" ~ '^[0-9]{10,}$'
+        then (to_timestamp("applicationCompleteDateTime"::bigint / 1000.0) at time zone 'Asia/Kolkata')
+        else "applicationCompleteDateTime"::timestamp
+    end as application_complete_datetime,
+    case
+        when "attendanceMarkedOn" ~ '^[0-9]{10,}$'
+        then (to_timestamp("attendanceMarkedOn"::bigint / 1000.0) at time zone 'Asia/Kolkata')
+        else "attendanceMarkedOn"::timestamp
+    end as attendance_marked_on,
     "contactNumber"::text as contact_number,
     "dateOfJoining"::text as date_of_joining,
     

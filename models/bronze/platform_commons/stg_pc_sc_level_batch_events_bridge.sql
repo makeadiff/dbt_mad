@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 select
     "scLevelBatchId"::bigint as sc_level_batch_id,
