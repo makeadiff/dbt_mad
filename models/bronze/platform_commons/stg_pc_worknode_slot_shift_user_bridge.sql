@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 select
     "worknodeSlotShiftId"::bigint as worknode_slot_shift_id,

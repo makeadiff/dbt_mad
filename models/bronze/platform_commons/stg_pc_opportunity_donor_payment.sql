@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 with raw as (
     select * from {{ source('pc_raw', 'opportunityDonorPayment') }}
@@ -13,8 +13,8 @@ select
     "finalAmountId"::bigint as final_amount_id,
     "priceId"::bigint as price_id,
     "tipId"::bigint as tip_id,
-    "gatewayOrderId"::bigint as gateway_order_id,
-    "gatewayPaymentId"::bigint as gateway_payment_id,
+    "gatewayOrderId"::text as gateway_order_id,
+    "gatewayPaymentId"::text as gateway_payment_id,
     "gatewayPaymentStatus"::text as gateway_payment_status,
     "gatewaySubscriptionId"::text as gateway_subscription_id,
     "paymentStatus"::text as payment_status,

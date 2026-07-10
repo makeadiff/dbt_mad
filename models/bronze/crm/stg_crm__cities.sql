@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 with source as (
     select * from {{ source('crm_raw', 'cities') }}

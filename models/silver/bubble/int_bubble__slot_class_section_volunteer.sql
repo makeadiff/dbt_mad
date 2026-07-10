@@ -19,6 +19,7 @@ joined as (
         slot_class_section_map.slot_class_section_id,
         user_map.volunteer_id,
         raw.academic_year,
+        raw.is_active,
         raw.is_removed,
         raw.created_date,
         raw.modified_date
@@ -44,6 +45,7 @@ select
     slot_class_section_id,
     volunteer_id,
     academic_year,
+    is_active,
     is_removed,
     created_date,
     modified_date

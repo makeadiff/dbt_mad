@@ -186,10 +186,7 @@ select
     coalesce(i.issue_count, 0) = 0 as validation_status,
     i.validation_issues,
     coalesce(i.issue_count, 0) as issue_count,
-    current_timestamp as validation_run_at,
-    t._airbyte_raw_id,
-    t._airbyte_extracted_at,
-    t._airbyte_meta
+    current_timestamp as validation_run_at
 from trimmed t
 left join {{ ref('int_pc_user_data') }} co_user
     on co_user."UserId"::numeric::integer = t.co_id

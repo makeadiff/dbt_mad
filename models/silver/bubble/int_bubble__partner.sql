@@ -51,5 +51,7 @@ select
     poc_designation,
     date_of_first_contact,
     low_income_resource,
-    partner_affiliation_type
+    partner_affiliation_type,
+    converted,
+    latest_conversion_stage
 from deduplicated

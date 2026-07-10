@@ -24,6 +24,8 @@ select
     center,
     user_id_number as volunteer_id,
     user_role,
+    worknode_id,
+    is_active,
     user_display_name,
     authentication,
     contact_number,

@@ -44,7 +44,7 @@ models:
   
   dbt_mad:
     bronze:
-      +materialized: view          # lightweight, no storage cost
+      +materialized: table         # persisted so Airbyte's raw-table drop/recreate isn't blocked by view dependencies
       bubble:
         +schema: bronze_bubble
       crm:
