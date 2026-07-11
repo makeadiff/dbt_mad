@@ -1,4 +1,4 @@
-{{ config(materialized='view') }}
+{{ config(materialized='table') }}
 
 -- Class Ops Credit Data: unique active volunteers/mentors for the current academic year,
 -- joined to their credit data.

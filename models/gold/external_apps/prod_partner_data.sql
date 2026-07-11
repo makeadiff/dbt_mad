@@ -64,7 +64,7 @@ SELECT
   END AS converted,
 
   -- Partner created/updated dates (converted to IST / Asia/Kolkata)
-  (p.created_at AT TIME ZONE 'Asia/Kolkata') AS partner_created_date,
+  (p.created_at AT TIME ZONE 'Asia/Kolkata')::timestamp AS partner_created_date,
   (GREATEST(
     p.updated_at,
     latest_co.updated_at,
@@ -73,7 +73,7 @@ SELECT
     latest_meeting.updated_at,
     latest_mou.updated_at,
     latest_pa.updated_at
-  ) AT TIME ZONE 'Asia/Kolkata') AS partner_updated_date
+  ) AT TIME ZONE 'Asia/Kolkata')::timestamp AS partner_updated_date
 
 FROM {{ ref('dim_crm_partner') }} p
 
