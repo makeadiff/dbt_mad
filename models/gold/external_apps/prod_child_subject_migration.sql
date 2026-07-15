@@ -80,8 +80,8 @@ deduplicated as (
 
 select
     child_subject_id,
-    child_id as child_id_id,
-    class_section_subject_id as class_section_subject_id_id,
+    child_id as child_id,
+    class_section_subject_id as class_section_subject_id,
     is_active,
     removed,
     cast(null as timestamptz) as deleted_at,
