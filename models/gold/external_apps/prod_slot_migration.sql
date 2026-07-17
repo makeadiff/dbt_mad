@@ -50,8 +50,8 @@ with raw as (
             lower("day_of_week"),
             lower(trim(to_char((("start_time"::timestamptz)) at time zone 'Asia/Kolkata', 'Day')))
         ) as day_of_week,
-        (("start_time"::timestamptz) at time zone 'Asia/Kolkata')::time as start_time,
-        (("end_time"::timestamptz) at time zone 'Asia/Kolkata')::time as end_time,
+        date_trunc('second', ("start_time"::timestamptz) at time zone 'Asia/Kolkata')::time without time zone as start_time,
+        date_trunc('second', ("end_time"::timestamptz) at time zone 'Asia/Kolkata')::time without time zone as end_time,
         "reccuring"::boolean as recurring,
         "is_active"::boolean as is_active,
         "removed"::boolean as removed,
