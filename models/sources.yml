@@ -30,6 +30,11 @@ sources:
       - name: subject
       - name: user
 
+  - name: dots_raw
+    tables:
+      - name: childAttendance
+      - name: volunteerAttendance
+
   - name: crm_raw
     tables:
       - name: cities
