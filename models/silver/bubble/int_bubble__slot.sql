@@ -2,11 +2,17 @@
 
 -- Resolves UUID foreign keys for slot records + deduplicates
 -- Flow: stg_bubble__slot → int_bubble__slot
--- Joins: partner (UUID→school_id)
+-- Joins: partner (UUID→school_id), school_academic_year (UUID→school_academic_year_id)
+-- school_academic_year_id lets downstream models (e.g. fct_e2_volunteer_allocation_history,
+-- attendance-by-slot-date facts) resolve a slot to its academic_year_int label.
 
 with partner_map as (
     select partner_id as uuid, partner_id1 as school_id
     from {{ ref('stg_bubble__partner') }}
+),
+school_academic_year_map as (
+    select school_academic_year_uuid as uuid, school_academic_year_id
+    from {{ ref('int_bubble__school_academic_year') }}
 ),
 
 joined as (
@@ -20,12 +26,14 @@ joined as (
         raw.end_time,
         raw.is_recurring,
         partner_map.school_id,
+        school_academic_year_map.school_academic_year_id,
         raw.is_active,
         raw.is_removed,
         raw.created_date,
         raw.modified_date
     from {{ ref('stg_bubble__slot') }} raw
     left join partner_map on raw.school_id = partner_map.uuid
+    left join school_academic_year_map on raw.school_academic_year_id = school_academic_year_map.uuid
 ),
 
 deduplicated as (
