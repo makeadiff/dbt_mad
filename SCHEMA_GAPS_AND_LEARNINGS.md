@@ -1,4 +1,4 @@
-# Schema Design Gaps — Learnings from Building the E2 Dashboard
+# Schema Design Gaps — Learnings from Building the E2 Dashboard   
 
 This document exists for one reason: while building the E2 chapter dashboard on top of the *current*
 tool's schema (Bubble + DOTS + the Google Sheet ops mapping), we kept hitting confusion, rework, and
