@@ -11,3 +11,6 @@ venv/
 profiles.yml
 
 .serena/
+
+
+SCHEMA_GAPS_AND_LEARNINGS.md
