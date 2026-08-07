@@ -38,6 +38,7 @@ select
     ss.chapter_id,
     ss.chapter_name,
     ss.city_name,
+    ss.state,
     ss.co_name,
     cd.cho_name,
     ss.engine,

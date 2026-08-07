@@ -155,6 +155,7 @@ select
     cay.chapter_id,
     cay.chapter_name,
     cd.city_name,
+    cd.state,
     cd.co_name,
     cd.engine,
     cay.chapter_status,
