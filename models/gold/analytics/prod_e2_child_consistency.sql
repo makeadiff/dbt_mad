@@ -10,6 +10,11 @@
 -- (sourced from int_bubble__partner) -- the two disagree for a real subset of chapters, and
 -- prod_e2_dashboard_summary already shows the dim_chapter_mapping version, so this keeps the same
 -- chapter label consistent across all three dashboards.
+-- chapter_status comes from dim_chapter_current_status ('Active'/'Inactive'), same as
+-- prod_e2_dashboard_summary -- a chapter's OLD year showing inactive is usually just normal rollover
+-- once a newer year exists, so per-year active/inactive can't honestly be read as "dropped out."
+-- This is chapter-level: the same value repeats across every row for that chapter regardless of
+-- which academic_year the row itself is for.
 
 select
     cc.child_id,
@@ -21,7 +26,7 @@ select
     cd.co_name,
     cd.cho_name,
     cd.engine,
-    cd.chapter_status,
+    case when ccs.is_currently_active then 'Active' else 'Inactive' end as chapter_status,
     cc.academic_year,
     cc.sessions_happened,
     cc.attended_sessions,
@@ -31,3 +36,5 @@ select
 from {{ ref('fct_e2_child_consistency') }} cc
 left join {{ ref('dim_chapter_mapping') }} cd
     on cc.chapter_id::text = cd.chapter_id
+left join {{ ref('dim_chapter_current_status') }} ccs
+    on cc.chapter_id::text = ccs.school_id::text

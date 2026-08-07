@@ -11,6 +11,10 @@
 -- resolution table (school_class, slot, school_session_detail all join to it by school_academic_year_id
 -- PK) and collapsing it to one row per business key would silently drop the superseded PKs those
 -- joins rely on.
+-- Carries partner_name (Bubble-native) so this can drive dashboard row sets without going through
+-- dim_chapter_mapping -- that dimension's Active/E2 status comes from a human-maintained ops sheet,
+-- which is a different (and sometimes stale) signal from "does this school actually have Bubble data
+-- for this year."
 
 with latest_per_school_ay as (
     select distinct on (say.school_id, say.academic_year_id)
@@ -24,8 +28,11 @@ with latest_per_school_ay as (
 
 select
     l.school_id,
+    p.partner_name,
     ay.label as academic_year,
     (l.is_active = true and l.is_removed = false) as is_ay_active
 from latest_per_school_ay l
 join {{ ref('int_bubble__academic_year') }} ay
     on l.academic_year_id = ay.academic_year_id
+left join {{ ref('int_bubble__partner') }} p
+    on l.school_id = p.partner_id

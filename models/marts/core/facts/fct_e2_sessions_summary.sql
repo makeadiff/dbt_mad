@@ -3,10 +3,22 @@
 -- fct_e2_sessions_summary: chapter-level session delivery rollup for one academic year
 -- Grain: one row per (chapter_id, academic_year)
 -- Ported from the legacy fct_e2_sessions_summary model, rebuilt on fct_e2_volunteer_allocation_history +
--- fct_e2_volunteer_attendance_by_slot_date + fct_e2_cancellations + dim_chapter_mapping.
--- NOTE: Currently filtered to E2 chapters only (chapter_mapping.engine = 'E2'), matching the legacy
--- model. When E1 attendance data is integrated (different source system), remove the engine filter
--- and expose engine as a column so dashboards can filter by engine themselves.
+-- fct_e2_volunteer_attendance_by_slot_date + fct_e2_cancellations.
+-- The row set (which chapter+academic_year combos exist at all) comes from
+-- dim_school_academic_year_status, not dim_chapter_mapping's Active/E2 filter -- that filter reflects
+-- today's ops-sheet status, which excludes schools that have real historical data but are since marked
+-- "Dropped out" or were never added to the sheet (confirmed: 35 + 15 such schools for 2025-2026 alone).
+-- dim_chapter_mapping is still joined, but only to enrich with fields Bubble doesn't have (city/CO/CHO)
+-- -- it no longer decides which rows appear.
+-- No explicit engine filter: every school in Bubble's school_academic_year table is assumed to be E2
+-- (Bubble/DOTS is the E2-specific tracking system; E1 has no presence here at all). If that assumption
+-- ever stops holding, this will need a real engine filter added back.
+-- chapter_status comes from dim_chapter_current_status ('Active'/'Inactive'), not from a given year's
+-- own is_ay_active -- a chapter's OLD year showing inactive is usually just normal rollover once a
+-- newer year exists (confirmed: of 101 chapters inactive for 2025-2026, 62 are active again in
+-- 2026-2027), so per-year active/inactive can't honestly be read as "dropped out." This instead
+-- reports whether the chapter's single latest known academic-year record is active, repeated across
+-- every row for that chapter regardless of which year the row itself is for.
 
 with section_allocation as (
     select distinct on (slot_class_section_id, academic_year)
@@ -88,11 +100,13 @@ sessions_happened_per_section as (
 
 chapter_academic_years as (
     select
-        mm.chapter_id,
-        ay.label as academic_year
-    from {{ ref('dim_chapter_mapping') }} mm
-    cross join {{ ref('int_bubble__academic_year') }} ay
-    where mm.chapter_status = 'Active' and mm.engine = 'E2'
+        sas.school_id::text as chapter_id,
+        sas.partner_name as chapter_name,
+        sas.academic_year,
+        case when ccs.is_currently_active then 'Active' else 'Inactive' end as chapter_status
+    from {{ ref('dim_school_academic_year_status') }} sas
+    left join {{ ref('dim_chapter_current_status') }} ccs
+        on sas.school_id = ccs.school_id
 ),
 
 section_metrics as (
@@ -139,11 +153,11 @@ section_metrics_agg as (
 
 select
     cay.chapter_id,
-    cd.chapter_name,
+    cay.chapter_name,
     cd.city_name,
     cd.co_name,
     cd.engine,
-    cd.chapter_status,
+    cay.chapter_status,
     cay.academic_year,
     sma.total_planned_sessions,
     sma.total_sessions_happened,

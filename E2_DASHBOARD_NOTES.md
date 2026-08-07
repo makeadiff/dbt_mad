@@ -86,6 +86,43 @@ below.
   `prod_e2_child_consistency`) were added on top instead, each independently built on the marts fact
   + `dim_chapter_mapping`. `prod_e2_dashboard_summary` was never touched by this — it always read the
   marts facts directly.
+- **`dim_chapter_mapping.chapter_name`** now sources from Bubble (`int_bubble__partner.partner_name`)
+  instead of the ops sheet — the sheet is human-maintained and had real mismatches against Bubble for a
+  meaningful subset of chapters (e.g. two chapters whose names looked swapped between the two sources).
+  `city_name`/`co_name`/`cho_name`/`engine`/`chapter_status` still come from the sheet since Bubble has
+  no equivalent for those.
+- **The dashboard's row set (which chapter+academic_year combos exist at all) no longer comes from
+  `dim_chapter_mapping`.** It used to cross-join `dim_chapter_mapping` filtered to
+  `chapter_status='Active' AND engine='E2'` with every academic year — but that's *today's* ops-sheet
+  status, and it was silently excluding schools with real historical data: for 2025-2026 alone, 35
+  schools marked "Dropped out" (but still with real 2025-2026 session data in Bubble) and 15 schools
+  never added to the sheet at all. `fct_e2_sessions_summary`'s `chapter_academic_years` CTE now drives
+  off `dim_school_academic_year_status` instead (pure Bubble: one row per school × academic year that
+  actually exists in `school_academic_year`) — `dim_chapter_mapping` is still left-joined, but only to
+  enrich with city/CO/CHO/chapter_status, never to decide which rows appear. Effect: dashboard row
+  count went from 142 to 187 (119 for 2025-2026, up from 71; 68 for 2026-2027, up from 71). No explicit
+  engine filter is applied any more either — every school in `school_academic_year` is assumed to be E2
+  by construction (Bubble/DOTS has no E1 presence), flagged in `fct_e2_sessions_summary`'s header
+  comment in case that assumption ever needs revisiting.
+- **`chapter_status` now comes from `dim_school_academic_year_status.is_ay_active`** (`'Active'` /
+  `'Dropped out'`) across all three E2 dashboards, not from `dim_chapter_mapping`'s ops-sheet status.
+  Traced why the sheet-based version had nulls: of 561 Bubble partners, 454 simply have no matching
+  `chapter_id` row in the ops sheet at all (confirmed zero cases of "matched to a sheet row but the
+  status cell was blank" — it's purely a missing-row problem). The sheet's status is also only a
+  single current-state value, not per academic year, so it couldn't distinguish "active in 2025-2026"
+  from "active in 2026-2027" anyway. The new derivation is per-`(chapter_id, academic_year)`, sourced
+  entirely from Bubble, and has zero nulls across all 187 dashboard rows.
+- **`chapter_status` moved again, this time to chapter-level.** The per-year 'Active'/'Dropped out'
+  version above was itself wrong: a chapter's *old* year showing inactive is usually just normal
+  rollover once a newer year exists (of 101 chapters inactive for 2025-2026, 62 are active again in
+  2026-2027) — "dropped out" isn't something a single year's flags can prove. New model
+  `dim_chapter_current_status` (grain: one row per chapter) finds each chapter's single latest
+  academic-year record (by `academic_year_id`, so it generalizes to however many years exist) and
+  reports whether *that one* is active, as `'Active'`/`'Inactive'`. This value is now identical across
+  every row for the same chapter regardless of which academic_year that row is for. Wired into all
+  three E2 dashboards. `dim_school_academic_year_status` (per-year) is unchanged and still used for the
+  `is_chapter_active`/`total_slots`/`total_classes`/`total_volunteers_assigned` branching logic in
+  `fct_e2_school_coverage`, which genuinely needs a per-year answer.
 
 ## Pending / open items
 
@@ -95,10 +132,11 @@ below.
    actually exist are `is_removed=true` — 1,392 rows, mostly tagged `academic_year='2025-2026'` — or
    `is_active=true, is_removed=false` — 4,121 rows, mostly `academic_year` null.)
 
-2. **Chapters with no `school_academic_year` row at all for a given year** — these come back null for
-   `is_chapter_active`/`total_slots`/`total_classes`/`total_volunteers_assigned`, and their underlying
-   slot/class/volunteer rows are silently excluded from those sums (not just cosmetically null).
-   As of this build:
+2. **RESOLVED by the row-set change above.** Previously, chapters with no `school_academic_year` row
+   for a given year still appeared as a blank row (null `is_chapter_active`/`total_slots`/etc.), which
+   was confusing. Now that the row set itself comes from `dim_school_academic_year_status`, a
+   chapter/year with no `school_academic_year` row simply has no row in the dashboard for that year —
+   no more silent nulls to explain. (Historical note, no longer current now that the row set changed:
 
    **5 chapters missing 2025-2026 status:**
    | chapter_id | chapter_name | city | CO |
@@ -126,8 +164,9 @@ below.
    | 604 | Govt. Hr. Sec. School Janakganj 2 | Gwalior | Ashish sharma |
 
    Note chapter 175, 455, 594, 600, 604 appear in *both* lists — missing a `school_academic_year` row
-   for either year entirely. Status: waiting on confirmation of whether this is an onboarding lag or a
-   real data gap to flag to ops.
+   for either year entirely. That's still true after the row-set change — these 5 schools have no
+   Bubble academic-year record for either year, so they still have no dashboard row at all. Status:
+   waiting on confirmation of whether this is an onboarding lag or a real data gap to flag to ops.)
 
 3. **`dim_chapter_mapping` is current-state only, not historized** — acknowledged, not a concern for now.
    The `worknode_id` mapping it depends on is itself a this-year-only concept, so there's no
@@ -138,6 +177,14 @@ below.
 
 5. **E1 dashboard** — deferred until E2 is complete. Will need its own `fct_e1_*` chain once E1's actual
    source system is confirmed.
+
+6. **Confirm the expanded row set is actually wanted.** The dashboard now includes every school with
+   real Bubble academic-year data, including 40 rows currently marked "Dropped out" on the ops sheet
+   and 15 rows not on the sheet at all (both show up with null `city_name`/`co_name`/`chapter_status`
+   since Bubble has no equivalent for those fields). This is a deliberate change from "only today's
+   Active+E2 chapters" to "every school with real historical data" — worth a sanity check with whoever
+   consumes this dashboard before it's treated as final, since totals (chapter counts, sums) will look
+   noticeably different from before.
 
 ## Prod deployment
 
