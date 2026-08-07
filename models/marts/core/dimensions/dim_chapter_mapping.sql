@@ -10,6 +10,10 @@
 -- meaningful subset of chapters (confirmed by checking the actual data), where Bubble is the
 -- system of record. Falls back to the sheet's chapter_name only in the rare case partner_name
 -- itself is null.
+-- state is the reverse: sheet's state is only filled for 80 of 562 chapters vs. Bubble's 562/562
+-- (confirmed by checking the actual data), so it falls back to Bubble's state whenever the sheet's
+-- is null, rather than sourcing from the sheet alone like city_name/co_name/cho_name/engine/status
+-- (those represent the org's ops-reporting grouping, not a raw address field Bubble already has).
 
 with mapping_sheet_deduped as (
     -- one row per chapter_id: prefer the currently-valid mapping row when duplicates exist
@@ -17,6 +21,7 @@ with mapping_sheet_deduped as (
         chapter_id,
         chapter_name,
         city_name,
+        state,
         co_name,
         cho_name,
         engine,
@@ -31,6 +36,7 @@ select
     p.partner_id::text as chapter_id,
     coalesce(p.partner_name, mm.chapter_name) as chapter_name,
     mm.city_name,
+    coalesce(mm.state, p.state) as state,
     mm.co_name,
     mm.cho_name,
     mm.engine,
