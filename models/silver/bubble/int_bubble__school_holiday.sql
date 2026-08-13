@@ -6,6 +6,10 @@
 -- Gives downstream (fct_e2_cancellations) an integer school_id that lines up with
 -- int_bubble__class_section.school_id, so planned session dates can be checked
 -- against the holiday windows for the same school.
+-- Deduplicates on Bubble's raw "_id", not "school_holiday_id" -- unlike every other
+-- int_bubble__* entity id, school_holiday_id is not a reliable global unique key here (observed
+-- two genuinely different holiday records, for two different schools, both stamped
+-- school_holiday_id=1); partitioning on it silently dropped one of the two as a "duplicate".
 
 with partner_map as (
     select partner_id as uuid, partner_id1 as school_id
@@ -14,6 +18,7 @@ with partner_map as (
 
 joined as (
     select
+        raw."_id" as school_holiday_uid,
         raw.school_holiday_id,
         partner_map.school_id,
         raw.holiday_reason,
@@ -31,14 +36,14 @@ joined as (
 deduplicated as (
     {{ dbt_utils.deduplicate(
         relation='joined',
-        partition_by='school_holiday_id',
+        partition_by='school_holiday_uid',
         order_by='modified_date desc',
        )
     }}
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['school_holiday_id']) }} as school_holiday_sk,
+    {{ dbt_utils.generate_surrogate_key(['school_holiday_uid']) }} as school_holiday_sk,
     {{ dbt_utils.generate_surrogate_key(['school_id']) }} as school_sk,
     school_holiday_id,
     school_id,
