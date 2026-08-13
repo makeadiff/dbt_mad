@@ -6,6 +6,10 @@
 -- This is the more fundamental child enrollment link: a child must be assigned to a school_class
 -- (mandatory at enrollment/edit time) even before, or without ever, being assigned a specific
 -- class_section -- so this reaches children that int_bubble__child_class_section misses.
+-- Deduplicates on Bubble's raw "_id", not "child_class_id" -- same bug class as school_holiday_id and
+-- child_class_section_id: child_class_id is not a reliable global unique key (found 46 groups, 94 raw
+-- rows, where the same child_class_id is shared by genuinely different children's enrollment records).
+-- Partitioning on it silently dropped one child's real enrollment as a "duplicate" of another's.
 
 with child_map as (
     select _id as uuid, child_id
@@ -18,6 +22,7 @@ school_class_map as (
 
 joined as (
     select
+        raw."_id" as child_class_uid,
         raw.child_class_id,
         raw.academic_year,
         child_map.child_id,
@@ -34,14 +39,14 @@ joined as (
 deduplicated as (
     {{ dbt_utils.deduplicate(
         relation='joined',
-        partition_by='child_class_id',
+        partition_by='child_class_uid',
         order_by='modified_date desc',
        )
     }}
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['child_class_id']) }} as child_class_sk,
+    {{ dbt_utils.generate_surrogate_key(['child_class_uid']) }} as child_class_sk,
     {{ dbt_utils.generate_surrogate_key(['child_id']) }} as child_sk,
     {{ dbt_utils.generate_surrogate_key(['school_class_id']) }} as school_class_sk,
     child_class_id,

@@ -9,8 +9,14 @@
 -- per breakdown, so a chart just filters to a metric_group and sets category as Dimension, count as Metric.
 -- Deliberately a sibling of prod_e2_dashboard_summary, not a dependency of it -- built straight on the
 -- same marts/core facts (fct_e2_volunteer_consistency, fct_e2_child_consistency, fct_e2_sessions_summary,
--- fct_e2_school_coverage), so a change here never affects it, per this project's
--- gold/analytics-builds-on-marts-only convention.
+-- fct_e2_school_coverage, fct_e2_cancellation_reasons), so a change here never affects it, per this
+-- project's gold/analytics-builds-on-marts-only convention.
+--
+-- 'Cancellation Reason' metric_group: category is Bubble's raw holiday_reason text
+-- (e.g. "Cancelled from school's end", "MAD event (eg: YEC, etc)") -- passed through as-is rather
+-- than remapped into fixed buckets, so new dropdown values in Bubble show up automatically. As of
+-- 2026-08-13 this field is barely populated in Bubble (2 rows total warehouse-wide), so expect this
+-- breakdown to be sparse until chapters adopt it more.
 
 with volunteer_consistency_mix as (
     select
@@ -61,6 +67,16 @@ session_delivery_mix as (
     from {{ ref('fct_e2_sessions_summary') }}
 ),
 
+cancellation_reason_mix as (
+    select
+        chapter_id::text as chapter_id,
+        academic_year,
+        'Cancellation Reason' as metric_group,
+        cancellation_reason as category,
+        cancelled_sessions_count as count
+    from {{ ref('fct_e2_cancellation_reasons') }}
+),
+
 mentor_coverage_mix as (
     select chapter_id, academic_year, 'Mentor Coverage' as metric_group, 'With Mentor' as category, total_children_with_mentor as count
     from {{ ref('fct_e2_school_coverage') }}
@@ -87,6 +103,8 @@ unpivoted as (
     select * from session_not_happened_breakdown_mix
     union all
     select * from session_delivery_mix
+    union all
+    select * from cancellation_reason_mix
     union all
     select * from mentor_coverage_mix
     union all

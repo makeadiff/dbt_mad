@@ -28,6 +28,19 @@
 -- (total_children_with_mentor + children_without_mentor) are sourced from two different populations and
 -- will not always sum to the same total -- that's expected, not a bug, given the two source tables
 -- disagree on which children exist at all.
+-- Also joined to int_bubble__children and filtered on is_active=true there (2026-08-13) -- a separate
+-- signal from child_class.is_active: it's the child's own exit status (did this kid leave the program),
+-- not tied to a specific year's archival state. Confirmed 2,061 children warehouse-wide have
+-- is_active=false on their own record but a stale is_active=true child_class row -- e.g. 111 of the 177
+-- children counted here for chapter 220 in 2026-2027 with no class_section assignment turned out to be
+-- exactly this: exited children never cleaned up. Deliberately did NOT also filter
+-- child_class.is_active=true itself -- tested it and it collapses 2025-2026 from 3,327 to 244 children,
+-- which is the exact undercounting the paragraph above warns about, not a fix.
+-- The same is_active=true filter (via int_bubble__children) is also applied to total_children_with_mentor/
+-- children_without_mentor below, for the same reason: without it, an exited child who still has a
+-- child_class_section assignment would be counted on the mentor side but not in total_children_in_system,
+-- which had started producing a negative gap (mentor+non-mentor totals exceeding total_children_in_system
+-- for 2025-2026) once total_children_in_system alone got this filter.
 
 with class_sections_with_slot as (
     select distinct class_section_id
@@ -144,6 +157,10 @@ children_in_system as (
     join {{ ref('int_bubble__child_class') }} cc
         on csc.school_class_id = cc.school_class_id
         and cc.is_removed = false
+    join {{ ref('int_bubble__children') }} ch
+        on cc.child_id = ch.child_id
+        and ch.is_active = true
+        and ch.is_removed = false
     group by csc.chapter_id, csc.academic_year
 ),
 
@@ -156,13 +173,19 @@ section_level_metrics as (
         scs.chapter_id,
         scs.academic_year,
         count(distinct scs.class_section_id) as total_sections,
-        count(distinct ccs.child_id) filter (where cws.class_section_id is not null) as total_children_with_mentor,
-        count(distinct ccs.child_id) filter (where cws.class_section_id is null) as children_without_mentor,
+        count(distinct ccs.child_id) filter (
+            where cws.class_section_id is not null and ch.is_active = true and ch.is_removed = false
+        ) as total_children_with_mentor,
+        count(distinct ccs.child_id) filter (
+            where cws.class_section_id is null and ch.is_active = true and ch.is_removed = false
+        ) as children_without_mentor,
         count(distinct scs.class_section_id) filter (where cws.class_section_id is null) as sections_without_volunteer
     from school_class_sections scs
     left join {{ ref('int_bubble__child_class_section') }} ccs
         on scs.class_section_id = ccs.class_section_id
         and ccs.is_removed = false
+    left join {{ ref('int_bubble__children') }} ch
+        on ccs.child_id = ch.child_id
     left join class_sections_with_slot cws
         on scs.class_section_id = cws.class_section_id
     group by scs.chapter_id, scs.academic_year
