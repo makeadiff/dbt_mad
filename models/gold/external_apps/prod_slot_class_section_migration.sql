@@ -11,11 +11,20 @@
 -- class_section_subject_id both stored even though the latter implies the former) -
 -- carried through as-is, not deduplicated away.
 --
--- FK resolution (all three resolve cleanly, 0 unmatched rows in bubble_raw as of this build):
+-- FK resolution:
 --   * slot_id_id                  -> slot._id                  -> slot.slot_id (stg_bubble__slot)
+--     0 unmatched rows in bubble_raw as of this build.
 --   * class_section_id_id         -> class_section._id         -> class_section.class_section_id (stg_bubble__class_section)
+--     4 of 1085 rows have a NULL raw class_section_id (same underlying source gap as
+--     the 31-row class_section_subject case investigated in
+--     prod_class_section_subject_migration.sql - these 4 are exactly the slot_class_section
+--     rows tied to 4 of those same 31 unresolved class_section_subject_ids, all
+--     is_active=false/removed=false).
 --   * class_section_subject_id_id -> class_section_subject._id -> class_section_subject.class_section_subject_id
---     (stg_bubble__class_section_subject)
+--     (stg_bubble__class_section_subject) - 0 unmatched rows in bubble_raw as of this build.
+--
+-- All three FKs are NOT NULL on the target, so the 4 rows above are excluded here, same
+-- policy as the null-required-FK cases in the sibling migration models.
 --
 -- created_by/updated_by: 0 null/unresolved Created_By rows in bubble_raw as of this
 -- build, but the admin fallback (user_id 477022) is kept for parity with the other
@@ -83,6 +92,9 @@ joined as (
     left join class_section_map on raw.class_section_uuid = class_section_map.uuid
     left join class_section_subject_map on raw.class_section_subject_uuid = class_section_subject_map.uuid
     left join user_map on raw.created_by_uuid = user_map.uuid
+    where slot_map.slot_id is not null
+      and class_section_map.class_section_id is not null
+      and class_section_subject_map.class_section_subject_id is not null
 ),
 
 deduplicated as (

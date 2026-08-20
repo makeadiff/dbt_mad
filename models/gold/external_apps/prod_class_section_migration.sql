@@ -19,6 +19,17 @@
 --     Loose/logical reference per the target schema (school_id is a plain BigIntegerField,
 --     not a DB-level FK) - 0 unmatched rows in bubble_raw as of this build.
 --
+-- school_academic_year_id: new column, not present in bubble_raw.class_section - per
+-- SESSIONOPS_SCHEMA_CHANGE_PLAN.md item 2, mirrors the parent school_class's own
+-- school_academic_year_id (a school_class-linked section has no independent academic
+-- year of its own). Sourced from prod_school_class_migration (not re-derived from
+-- stg_bubble__school_class + stg_bubble__school_academic_year here) so this always
+-- matches whatever school_academic_year_id that school_class actually migrates with,
+-- rather than risking drift between two independent resolutions of the same value.
+-- All 2026 rows resolve as of this build (every school_class_id here exists in
+-- prod_school_class_migration) - null only for a future class_section with no
+-- school_class_id (bucket sections), which have no source for this field at all.
+--
 -- created_by/updated_by: 8 rows have a null raw Created_By, and ~148 more carry a
 -- Created_By UUID with no matching row in bubble_raw."user". Falls back to the 'admin'
 -- user (user_id 477022) whenever unresolved, same rule as the other migration models.
@@ -46,6 +57,10 @@ school_class_map as (
     select "_id" as uuid, school_class_id
     from {{ ref('stg_bubble__school_class') }}
 ),
+school_class_academic_year_map as (
+    select school_class_id, school_academic_year_id
+    from {{ ref('prod_school_class_migration') }}
+),
 partner_map as (
     select partner_id as uuid, partner_id1 as school_id
     from {{ ref('stg_bubble__partner') }}
@@ -59,6 +74,7 @@ joined as (
     select
         raw.class_section_id,
         school_class_map.school_class_id,
+        school_class_academic_year_map.school_academic_year_id,
         partner_map.school_id,
         raw.section_code,
         raw.section_name,
@@ -70,6 +86,8 @@ joined as (
         coalesce(user_map.user_id_number, 477022) as resolved_user_id
     from raw
     left join school_class_map on raw.school_class_uuid = school_class_map.uuid
+    left join school_class_academic_year_map
+        on school_class_map.school_class_id = school_class_academic_year_map.school_class_id
     left join partner_map on raw.school_uuid = partner_map.uuid
     left join user_map on raw.created_by_uuid = user_map.uuid
 )
@@ -77,6 +95,7 @@ joined as (
 select
     class_section_id,
     school_class_id,
+    school_academic_year_id,
     school_id,
     section_code,
     section_name,

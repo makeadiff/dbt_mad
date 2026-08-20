@@ -8,11 +8,18 @@
 --
 -- Per the .md [FLAG] notes: both FKs lack an explicit db_column on the target Django
 -- model, so both get the doubled '_id_id' real column name (slot_class_section_id_id,
--- volunteer_id_id). Both resolve cleanly, 0 unmatched rows in bubble_raw as of this
--- build:
+-- volunteer_id_id).
 --   * slot_class_section_id_id -> slot_class_section._id -> slot_class_section.slot_class_section_id
---     (bubble_raw.slot_class_section directly, not stg - see parent_scs below)
+--     (bubble_raw.slot_class_section directly, not stg - see parent_scs below).
+--     3 of 1586 rows have a NULL raw slot_class_section_id. Also checked for dangling
+--     references: 8 more rows resolve to a slot_class_section_id that itself got
+--     excluded from prod_slot_class_section_migration (its own required FKs didn't
+--     resolve - see that model's header comment), so they'd point at a parent row that
+--     won't exist in the target. Both groups (11 rows total) are excluded here - the
+--     dangling check joins against prod_slot_class_section_migration itself so this
+--     stays correct if that model's exclusions ever change.
 --   * volunteer_id_id           -> user._id                -> users.user_id (stg_bubble__user)
+--     0 unmatched rows in bubble_raw as of this build.
 --
 -- deleted_at: ported from the 'scsv' branch of volunteer_allocation_history_e2_sessions.sql
 -- (mad_dbt__old_models/intermediate_aggregation/session_ops/). bubble has no dedicated
@@ -77,6 +84,14 @@ user_map as (
     select user_id as uuid, user_id_number
     from {{ ref('stg_bubble__user') }}
 ),
+migrated_scs as (
+    -- confirms the resolved slot_class_section_id actually made it into the migrated
+    -- parent table - prod_slot_class_section_migration excludes rows with unresolved
+    -- required FKs, so a volunteer row pointing at one of those excluded parents would
+    -- otherwise carry a dangling FK into the target.
+    select slot_class_section_id
+    from {{ ref('prod_slot_class_section_migration') }}
+),
 
 joined as (
     select
@@ -93,8 +108,12 @@ joined as (
     from raw
     left join slot_class_section_map on raw.slot_class_section_uuid = slot_class_section_map.uuid
     left join parent_scs on raw.slot_class_section_uuid = parent_scs.uuid
+    left join migrated_scs on slot_class_section_map.slot_class_section_id = migrated_scs.slot_class_section_id
     left join user_map on raw.volunteer_uuid = user_map.uuid
     left join user_map as user_map2 on raw.created_by_uuid = user_map2.uuid
+    where slot_class_section_map.slot_class_section_id is not null
+      and migrated_scs.slot_class_section_id is not null
+      and user_map.user_id_number is not null
 ),
 
 with_next as (
