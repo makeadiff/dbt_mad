@@ -13,3 +13,4 @@ profiles.yml
 .serena/
 .claude/settings.local.json
 CLAUDE.local.md
+SCHEMA_GAPS_AND_LEARNINGS.md
