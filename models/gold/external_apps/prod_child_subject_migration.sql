@@ -10,10 +10,18 @@
 -- names (child_id_id, class_section_subject_id_id) per the "exact DB column names"
 -- convention agreed for this migration project.
 --
--- FK resolution (both resolve cleanly, 0 unmatched rows in bubble_raw as of this build):
+-- FK resolution (0 unmatched rows in bubble_raw as of this build - every non-null UUID
+-- resolves; see the NULL child_id note below for the separate raw-null case):
 --   * child_id_id                -> child._id                -> child.child_id (stg_bubble__children)
 --   * class_section_subject_id_id -> class_section_subject._id -> class_section_subject.class_section_subject_id
 --     (stg_bubble__class_section_subject)
+--
+-- 102 rows in bubble_raw have a NULL child_id (79 after dedupe; 78 of those are already
+-- removed=true/is_active=false, 1 otherwise looks "live" with is_active=true/removed=
+-- false). child_id is NOT NULL on the target, so these rows can't load there - excluded
+-- here rather than migrated with a broken FK, same policy as the null-required-FK cases
+-- in prod_child_class_section_migration and the other sibling migration models.
+-- class_section_subject_id has 0 raw nulls, so it needs no equivalent filter.
 --
 -- created_by/updated_by: 0 null/unresolved Created_By rows in bubble_raw as of this
 -- build, but the admin fallback (user_id 477022) is kept for parity with the other
@@ -67,6 +75,7 @@ joined as (
     left join child_map on raw.child_uuid = child_map.uuid
     left join class_section_subject_map on raw.class_section_subject_uuid = class_section_subject_map.uuid
     left join user_map on raw.created_by_uuid = user_map.uuid
+    where child_map.child_id is not null
 ),
 
 deduplicated as (
