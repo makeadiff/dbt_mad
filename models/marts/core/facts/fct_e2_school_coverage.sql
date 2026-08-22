@@ -41,6 +41,14 @@
 -- child_class_section assignment would be counted on the mentor side but not in total_children_in_system,
 -- which had started producing a negative gap (mentor+non-mentor totals exceeding total_children_in_system
 -- for 2025-2026) once total_children_in_system alone got this filter.
+-- 2026-08-22 fix: chapter_school_classes (which anchors total_children_in_system) still carried a
+-- scl.is_removed=false filter, which reintroduced exactly the undercounting paragraph 18-24 above
+-- describes -- 49 of 117 chapters have EVERY school_class row marked is_removed=true, and 46 of
+-- those still had real, active child_class enrollment (up to 272 children for one chapter). Those
+-- chapters had ZERO rows in this model at all (not just a null total_children_in_system), so they
+-- silently vanished from every downstream dashboard. Filter removed from chapter_school_classes;
+-- children_in_system's own cc.is_removed=false / ch.is_active=true checks are what actually gatekeep
+-- a valid enrollment record, independent of the parent school_class row's archival state.
 
 with class_sections_with_slot as (
     select distinct class_section_id
@@ -133,6 +141,15 @@ class_counts as (
     group by p.partner_id::text, scs2.academic_year
 ),
 
+-- No scl.is_removed filter here (unlike school_class_sections below, which still needs it for
+-- section-level metrics): 49 of 117 chapters warehouse-wide have EVERY school_class row marked
+-- is_removed=true (likely sessionops-migration cleanup of the old school_class chain), yet 46 of
+-- those still have real, active child_class enrollment underneath (up to 272 children for one
+-- chapter) -- confirmed 2026-08-22. Filtering on scl.is_removed here silently dropped those chapters
+-- out of all_chapter_academic_years entirely, so total_children_in_system came back with no row at
+-- all (not just null) for real, currently-bot-active chapters. child_class.is_removed=false in
+-- children_in_system below is what actually gatekeeps a valid enrollment record, independent of
+-- whatever archival state the parent school_class metadata row is in.
 chapter_school_classes as (
     select
         p.partner_id::text as chapter_id,
@@ -145,7 +162,24 @@ chapter_school_classes as (
         on say.academic_year_id = ay.academic_year_id
     join {{ ref('int_bubble__partner') }} p
         on say.school_id = p.partner_id
-    where scl.is_removed = false
+),
+
+-- chapters_with_no_active_year: chapters where EVERY school_academic_year row (across all years) has
+-- is_active=false -- confirmed 2026-08-22 for chapters 53/185/455/563: is_active is false on 100% of
+-- their academic-year rows, which exactly coincides with their school_class rows being fully removed
+-- and their children being flagged is_active=false. All three signals agree Bubble considers these
+-- chapters archived with no current year, even though DOTS shows live bot submissions through March
+-- 2026. For these chapters ONLY, children.is_active can't be trusted as a real exit signal, so
+-- children_in_system below trusts child_class.is_removed=false alone. For every other (normal)
+-- chapter, children.is_active=true is still enforced -- blanket-dropping it warehouse-wide was tested
+-- and adds 465 children back into chapters that already worked correctly, some of which are real
+-- exited kids (2,061 such stale-flag cases are already documented above), so it's scoped to only the
+-- chapters that actually show this three-way "no active year at all" pattern.
+chapters_with_no_active_year as (
+    select school_id::text as chapter_id
+    from {{ ref('int_bubble__school_academic_year') }}
+    group by school_id::text
+    having bool_and(is_active = false)
 ),
 
 children_in_system as (
@@ -159,8 +193,11 @@ children_in_system as (
         and cc.is_removed = false
     join {{ ref('int_bubble__children') }} ch
         on cc.child_id = ch.child_id
-        and ch.is_active = true
         and ch.is_removed = false
+    left join chapters_with_no_active_year cnay
+        on csc.chapter_id = cnay.chapter_id
+    where cnay.chapter_id is not null
+       or ch.is_active = true
     group by csc.chapter_id, csc.academic_year
 ),
 
