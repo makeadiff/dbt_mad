@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: fct_volunteer_pipeline
+    description: >
+      One row per volunteer for the current reporting academic year. Carries two independent
+      populations -- INTAKE (this year's applicant cohort, PC-side, opportunity-filtered) and
+      COVERAGE (current-state census, Bubble-side, no opportunity filter) -- per
+      SRI_DASHBOARD_SPEC.md §12c. Never convert between them.
+    columns:
+      - name: volunteer_id
+        tests:
+          - not_null
+      - name: is_compliant
+        tests:
+          - not_null
+      - name: is_onboarded
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - volunteer_id
+              - academic_year

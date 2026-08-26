@@ -7,10 +7,10 @@
 -- potentially conflicting values. This dedupes to the latest application per user_id so
 -- downstream consumers get one CPP/COC status per user instead of one per application.
 --
--- ASSUMPTION (unverified against raw data -- no DB access at time of writing): the raw
--- cocAccepted/policyAccepted columns are treated as accepted when their text value is one of
--- 'true'/'yes'/'1'/'t' (case-insensitive, trimmed). Confirm actual raw values in
--- pc_raw."opportunityApplicantMeta" before relying on this in a dashboard.
+-- VERIFIED 2026-08-26 against int_pc_applicant_data: CodeOfConductPolicyAccepted and
+-- ChildProtectionPolicyAccepted only ever appear as 'true' or blank/null in raw data -- no
+-- 'yes'/'1'/'t' variants exist today. The broader truthy-value list is kept as a defensive
+-- superset, not because those other values have been observed.
 
 with applications as (
     select
