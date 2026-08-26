@@ -77,7 +77,7 @@ intake_by_volunteer as (
         bool_or(application_status = 'DRAFT') as is_draft,
         bool_or(application_status in ('PENDING', 'COMPLETED')) as is_applied,
         bool_or(application_status = 'COMPLETED') as is_completed,
-        bool_or(current_step_status = 'HIRE') as is_hired_new,
+        bool_or(current_step_status = 'HIRE') as is_recruited_new,
         -- lead_attribution (§12c, revised §12d): chapter (campaign-code match, the only
         -- ID-resolvable path) > chapter_unmatched (worknode says MAD_CHAPTER but we can't say
         -- which one -- see KNOWN GAP above; kept distinct from open_pool per §12d so it isn't
@@ -159,11 +159,11 @@ select
     coalesce(i.is_draft, false) as is_draft,
     coalesce(i.is_applied, false) as is_applied,
     coalesce(i.is_completed, false) as is_completed,
-    coalesce(i.is_hired_new, false) as is_hired_new,
+    coalesce(i.is_recruited_new, false) as is_recruited_new,
 
     -- COVERAGE (current state, any year)
-    (m.volunteer_id is not null) as is_mapped,
-    (al.volunteer_id is not null) as is_allocated,
+    (m.volunteer_id is not null) as is_allocated_to_school,
+    (al.volunteer_id is not null) as is_allocated_to_class,
     coalesce(comp.is_compliant, false) as is_compliant,
     (coalesce(comp.is_compliant, false) and ind.volunteer_id is not null) as is_onboarded,
     (

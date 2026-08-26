@@ -284,7 +284,7 @@ final AS (
         -- D11 fix: distinguishes a genuine zero target (no active class sections) from a broken
         -- join that would otherwise render identically as 0. See §3.5.
         COALESCE(bm.active_slot_class_section_count, 0) > 0 AS classes_set_up,
-        COALESCE(bm.volunteer_count, 0) AS total_volunteers_mapped,
+        COALESCE(bm.volunteer_count, 0) AS volunteers_allocated_to_school,
         COALESCE(bm.volunteers_assigned_to_class, 0) AS volunteers_assigned_to_class,
         COALESCE(bm.volunteers_signed_cpp_coc, 0) AS volunteers_compliant,
         COALESCE(bm.volunteers_signed_cpp_coc_assigned_to_class, 0) AS volunteers_compliant_assigned_to_class,

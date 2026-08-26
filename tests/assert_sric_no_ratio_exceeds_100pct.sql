@@ -5,7 +5,7 @@ select
     chapter_id,
     chapter,
     volunteers_compliant,
-    total_volunteers_mapped
+    volunteers_allocated_to_school
 from {{ ref('prod_sric_dashboard_data') }}
-where total_volunteers_mapped > 0
-  and volunteers_compliant > total_volunteers_mapped
+where volunteers_allocated_to_school > 0
+  and volunteers_compliant > volunteers_allocated_to_school
