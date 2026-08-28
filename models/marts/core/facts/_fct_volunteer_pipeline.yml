@@ -17,6 +17,12 @@ models:
       - name: is_onboarded
         tests:
           - not_null
+      - name: is_multi_chapter
+        description: >
+          True if the source had more than one chapter for this volunteer before dedup picked
+          one (most recent created_date, then highest chapter_id). See the model's grain comment.
+        tests:
+          - not_null
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

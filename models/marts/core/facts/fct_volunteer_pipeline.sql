@@ -13,6 +13,14 @@
 -- Re-running this model for a past year would need a different COVERAGE snapshot mechanism, not
 -- built here.
 --
+-- GRAIN IS ENFORCED, NOT ASSUMED (2026-08-28): a volunteer can be re-added to a second
+-- chapter/school without the first assignment ever being removed (school_volunteer has no field
+-- that marks the old one superseded). That's now resolved once, upstream, in
+-- int_bubble__school_volunteer_backfilled (see its header) rather than here -- this model's
+-- mapped_by_volunteer just passes through that resolution's is_multi_chapter flag.
+-- allocated_by_volunteer has its own local dedup for the same defect class on a different source
+-- table (slot_class_section_volunteer, not shared with another "allocated" consumer today).
+--
 -- Scope: E2 chapters only, matching prod_sric_dashboard_data's WHERE engine = 'E2'.
 --
 -- KNOWN GAP -- chapter_id on the INTAKE side (§12c): PC's own worknode ID space does not match
@@ -69,13 +77,18 @@ intake_applicants as (
 ),
 
 intake_by_volunteer as (
-    -- Business mappings, SIGNED 2026-08-26: Draft = ApplicationStatus 'DRAFT'; Applied = submitted
-    -- (PENDING or COMPLETED); Completed = ApplicationStatus 'COMPLETED' (a finished application,
-    -- not necessarily hired); Hired = CurrentStepStatus 'HIRE'. COMPLETED > HIRE is expected.
+    -- Business mappings, REVISED 2026-08-27: Draft/Applied/Completed are the three
+    -- non-exit values of the single ApplicationStatus field (DRAFT/PENDING/COMPLETED/WITHDRAWN),
+    -- so they are exclusive current-status flags, not cumulative ones -- is_applied was
+    -- previously `IN ('PENDING', 'COMPLETED')`, which made every Completed volunteer also count
+    -- as Applied (590 of 590 completed volunteers, confirmed 2026-08-27: zero other overlap).
+    -- is_applied is now PENDING only, matching the field 1:1. is_recruited_new (CurrentStepStatus
+    -- 'HIRE') is a genuinely separate field and is NOT exclusive with is_completed --
+    -- Completed > Recruited is expected (an application can finish without a hire).
     select
         volunteer_id,
         bool_or(application_status = 'DRAFT') as is_draft,
-        bool_or(application_status in ('PENDING', 'COMPLETED')) as is_applied,
+        bool_or(application_status = 'PENDING') as is_applied,
         bool_or(application_status = 'COMPLETED') as is_completed,
         bool_or(current_step_status = 'HIRE') as is_recruited_new,
         -- lead_attribution (§12c, revised §12d): chapter (campaign-code match, the only
@@ -98,10 +111,20 @@ intake_by_volunteer as (
 -- school_id backfill (null school_id -> live class assignment) lives in
 -- int_bubble__school_volunteer_backfilled -- see that model's header for the bias and its expiry
 -- (a workaround for §6.8, expected to be deleted once fixed upstream).
+--
+-- ONE ROW PER VOLUNTEER, 2026-08-28: int_bubble__school_volunteer_backfilled enforces its own
+-- declared grain (one row per volunteer_id, academic_year) as of 2026-08-28 -- see that model's
+-- header for why it didn't before and the volunteer (2125787) that surfaced it. Because school_id
+-- resolves 1:1 to chapter_id for E2 chapters, that upstream fix means this join can no longer fan
+-- out a volunteer across chapters either -- fixed once, upstream, rather than re-deduping here
+-- (two code paths computing "volunteers allocated to school" is exactly how they diverged from
+-- int_bubble__school_volunteer_metrics in the first place). is_multi_chapter passes through
+-- backfilled's is_multi_school flag so the case stays visible here too.
 mapped_by_volunteer as (
     select distinct
         mv.volunteer_id,
-        ecl.chapter_id
+        ecl.chapter_id,
+        mv.is_multi_school as is_multi_chapter
     from {{ ref('int_bubble__school_volunteer_backfilled') }} mv
     inner join e2_chapter_lookup ecl
         on mv.school_id = ecl.school_id
@@ -109,24 +132,55 @@ mapped_by_volunteer as (
 
 -- Allocated (§2): currently allocated, matching D1(a) -- scsv.is_active = true, not just
 -- is_removed = false.
-allocated_by_volunteer as (
+--
+-- DEDUPED 2026-08-28, same defect class as mapped_by_volunteer above: a volunteer with a live
+-- class assignment in more than one chapter would fan out the same way. Reduced the same way
+-- (most recent created_date, then highest chapter_id as tiebreak) -- chapter_id is resolved via
+-- school_id here purely to make the tiebreak deterministic; this CTE's own population is
+-- otherwise unchanged (still every currently-active class assignment, not scoped to E2 chapters).
+allocated_by_volunteer_raw as (
     select distinct
         scsv.volunteer_id,
-        cs.school_id
+        cs.school_id,
+        ecl.chapter_id,
+        scsv.created_date
     from {{ ref('int_bubble__slot_class_section_volunteer') }} scsv
     inner join {{ ref('int_bubble__slot_class_section') }} scs
         on scsv.slot_class_section_id = scs.slot_class_section_id
     inner join {{ ref('dim_class_section') }} cs
         on scs.class_section_id = cs.class_section_id
+    left join e2_chapter_lookup ecl
+        on cs.school_id = ecl.school_id
     where scsv.is_removed = false and scs.is_removed = false and scsv.is_active = true
 ),
 
--- Compliance (§2.1): CPP + COC accepted. Gate on "can this volunteer start class" -- separate
--- from onboarding, never merged.
+allocated_by_volunteer as (
+    select volunteer_id, school_id
+    from (
+        select
+            volunteer_id,
+            school_id,
+            row_number() over (
+                partition by volunteer_id
+                order by created_date desc, chapter_id desc nulls last
+            ) as rn
+        from allocated_by_volunteer_raw
+    ) ranked
+    where rn = 1
+),
+
+-- Compliance (§2.1): CPP + COC accepted, in ANY application (fixed 2026-08-27 -- see
+-- int_pc_applicant_policy_status's header; the old dedup-to-latest logic discarded real
+-- acceptances). Gate on "can this volunteer start class" -- separate from onboarding, never
+-- merged. compliance_year is the year of the most recent compliant application -- an
+-- approximation from the application's own timestamp, not a signature date (see that model's
+-- header) -- carried through so a consumer can filter to "compliant this year" without a
+-- rebuild; this model does not decide whether that filter should apply.
 compliance_by_volunteer as (
     select
         user_id::numeric as volunteer_id,
-        coalesce(cpp_accepted, false) and coalesce(coc_accepted, false) as is_compliant
+        is_compliant,
+        compliance_year
     from {{ ref('int_pc_applicant_policy_status') }}
 ),
 
@@ -163,14 +217,22 @@ select
 
     -- COVERAGE (current state, any year)
     (m.volunteer_id is not null) as is_allocated_to_school,
+    -- True if the source had more than one chapter for this volunteer before the dedup upstream
+    -- (int_bubble__school_volunteer_backfilled) picked one -- see mapped_by_volunteer's header.
+    -- Kept visible rather than silently resolved.
+    coalesce(m.is_multi_chapter, false) as is_multi_chapter,
     (al.volunteer_id is not null) as is_allocated_to_class,
     coalesce(comp.is_compliant, false) as is_compliant,
+    comp.compliance_year,
     (coalesce(comp.is_compliant, false) and ind.volunteer_id is not null) as is_onboarded,
+    -- Renamed 2026-08-27: this is eligibility (allocated AND compliant AND inducted), not
+    -- evidence of actually mentoring -- real sessions live in attendance data this model doesn't
+    -- touch. "Active in class" overclaimed what's actually known.
     (
         al.volunteer_id is not null
         and coalesce(comp.is_compliant, false)
         and ind.volunteer_id is not null
-    ) as is_active_in_class
+    ) as is_ready_to_mentor
 
 from combined c
 left join intake_by_volunteer i on c.volunteer_id = i.volunteer_id

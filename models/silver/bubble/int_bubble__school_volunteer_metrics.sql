@@ -9,7 +9,10 @@
 -- (b) `recruited` now sources from int_bubble__school_volunteer_backfilled, which resolves null
 --     school_id via the live class-assignment chain -- see that model's header for the bias
 --     (undercounts schools with volunteers and no classes) and its expiry (a workaround for the
---     §6.8 platform defect, expected to be deleted once that's fixed upstream).
+--     §6.8 platform defect, expected to be deleted once that's fixed upstream). That model also
+--     enforces one row per (volunteer_id, academic_year) (2026-08-28) -- previously a volunteer
+--     re-added to a second school without the first row being removed was counted at both
+--     schools here; now backfilled itself resolves to the most recent.
 -- (c) `recruited` counts COUNT(DISTINCT volunteer_id), not COUNT(*), so row duplication upstream
 --     (int_bubble__school_volunteer's dedup) can never inflate this number, per D1(c)'s decision to
 --     make the metric robust rather than chase a unique key.

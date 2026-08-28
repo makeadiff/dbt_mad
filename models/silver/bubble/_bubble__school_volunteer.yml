@@ -14,6 +14,27 @@ models:
           - unique
           - not_null
 
+  - name: int_bubble__school_volunteer_backfilled
+    description: >
+      One row per (volunteer_id, academic_year) -- currently non-removed school_volunteer rows,
+      null school_id backfilled via live class assignment. Enforced by dedup (2026-08-28): most
+      recent created_date, then highest school_id as a stable tiebreak, since school_volunteer
+      carries no field marking an old assignment superseded. is_multi_school flags every
+      volunteer this reduction actually changes.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - volunteer_id
+              - academic_year
+    columns:
+      - name: volunteer_id
+        tests:
+          - not_null
+      - name: is_multi_school
+        tests:
+          - not_null
+
   - name: int_bubble__school_volunteer_metrics
     description: >
       One row per school_id. volunteers_recruited is COUNT(DISTINCT volunteer_id) (D1c),

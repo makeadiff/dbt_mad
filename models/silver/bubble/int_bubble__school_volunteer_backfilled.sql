@@ -30,33 +30,87 @@
 -- Grain: one row per (volunteer_id, academic_year), matching fct_school_volunteer -- currently
 -- non-removed school_volunteer rows only (is_removed = false), since every consumer today wants
 -- the "currently recruited" population, not the full history.
+--
+-- GRAIN IS ENFORCED, NOT ASSUMED (2026-08-28): this grain was declared above from the start but
+-- never actually deduped -- school_volunteer has no field that marks an old assignment
+-- superseded (confirmed at every layer, raw bubble_raw.school_volunteer included), so a volunteer
+-- re-added to a second school without the first row being removed produced two live rows here,
+-- both is_active = true / is_removed = false, silently violating the declared grain. Found via
+-- volunteer 2125787: added to school 549 (chapter "Brilliant Academy - B2") on 2026-08-27 without
+-- its 2026-06-16 row at school 550 ("Brilliant Academy - B1", the same physical school under a
+-- second school record) ever being removed. This fanned out into every one of this model's three
+-- consumers independently (int_bubble__school_volunteer_metrics counting him at both schools,
+-- fct_volunteer_pipeline and prod_sric_dashboard_data's own backfilled join doing the same) --
+-- exactly the kind of divergence this consolidation was meant to prevent, one layer down.
+-- Reduced to one row per (volunteer_id, academic_year): most recent created_date, then highest
+-- school_id as a stable tiebreak. Verified against the Bubble frontend, which shows volunteer
+-- 2125787 on B2 (school 549, the newer row) only -- matching this tiebreak's pick. is_multi_school
+-- flags every volunteer this reduction actually changes, so the case stays visible to consumers
+-- rather than silently resolved.
 
 with recruited as (
     select
         school_volunteer_id,
         volunteer_id,
         academic_year,
-        school_id
+        school_id,
+        created_date
     from {{ ref('int_bubble__school_volunteer') }}
     where is_removed = false
+),
+
+backfilled as (
+    select
+        r.school_volunteer_id,
+        r.volunteer_id,
+        r.academic_year,
+        coalesce(r.school_id, backfill.school_id) as school_id,
+        r.created_date
+    from recruited r
+    left join lateral (
+        select cs.school_id
+        from {{ ref('int_bubble__slot_class_section_volunteer') }} scsv
+        inner join {{ ref('int_bubble__slot_class_section') }} scs
+            on scsv.slot_class_section_id = scs.slot_class_section_id
+        inner join {{ ref('dim_class_section') }} cs
+            on scs.class_section_id = cs.class_section_id
+        where scsv.volunteer_id = r.volunteer_id
+          and scsv.is_removed = false
+          and scsv.is_active = true
+        order by scsv.modified_date desc
+        limit 1
+    ) backfill on r.school_id is null
+),
+
+multi_school as (
+    select volunteer_id, academic_year
+    from backfilled
+    group by volunteer_id, academic_year
+    having count(distinct school_id) > 1
+),
+
+ranked as (
+    select
+        b.school_volunteer_id,
+        b.volunteer_id,
+        b.academic_year,
+        b.school_id,
+        (ms.volunteer_id is not null) as is_multi_school,
+        row_number() over (
+            partition by b.volunteer_id, b.academic_year
+            order by b.created_date desc, b.school_id desc
+        ) as rn
+    from backfilled b
+    left join multi_school ms
+        on b.volunteer_id = ms.volunteer_id
+        and b.academic_year is not distinct from ms.academic_year
 )
 
 select
-    r.school_volunteer_id,
-    r.volunteer_id,
-    r.academic_year,
-    coalesce(r.school_id, backfill.school_id) as school_id
-from recruited r
-left join lateral (
-    select cs.school_id
-    from {{ ref('int_bubble__slot_class_section_volunteer') }} scsv
-    inner join {{ ref('int_bubble__slot_class_section') }} scs
-        on scsv.slot_class_section_id = scs.slot_class_section_id
-    inner join {{ ref('dim_class_section') }} cs
-        on scs.class_section_id = cs.class_section_id
-    where scsv.volunteer_id = r.volunteer_id
-      and scsv.is_removed = false
-      and scsv.is_active = true
-    order by scsv.modified_date desc
-    limit 1
-) backfill on r.school_id is null
+    school_volunteer_id,
+    volunteer_id,
+    academic_year,
+    school_id,
+    is_multi_school
+from ranked
+where rn = 1

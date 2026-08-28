@@ -137,14 +137,16 @@ e2_assigned_volunteers AS (
     WHERE scsv.is_removed = false AND scs.is_removed = false AND scsv.is_active = true
 ),
 
--- CPP/COC signed status per volunteer. Bubble volunteer_id and Platform Commons user_id share the
+-- CPP/COC signed status per volunteer, compliant in ANY application (fixed 2026-08-27 -- see
+-- int_pc_applicant_policy_status's header; the old dedup-to-latest logic discarded real
+-- acceptances, 4 vs the true 60). Bubble volunteer_id and Platform Commons user_id share the
 -- same numeric identity space -- same join used by prod_school_volunteer.sql and
 -- prod_volunteer_class_child_view.sql.
 e2_recruited_volunteers_with_policy AS (
     SELECT
         rv.chapter_id,
         rv.volunteer_id,
-        COALESCE(pol.cpp_accepted, false) AND COALESCE(pol.coc_accepted, false) AS signed_cpp_and_coc
+        COALESCE(pol.is_compliant, false) AS signed_cpp_and_coc
     FROM e2_recruited_volunteers rv
     LEFT JOIN {{ ref('int_pc_applicant_policy_status') }} pol
         ON rv.volunteer_id::numeric = pol.user_id::numeric
@@ -154,7 +156,7 @@ e2_assigned_volunteers_with_policy AS (
     SELECT
         av.chapter_id,
         av.volunteer_id,
-        COALESCE(pol.cpp_accepted, false) AND COALESCE(pol.coc_accepted, false) AS signed_cpp_and_coc
+        COALESCE(pol.is_compliant, false) AS signed_cpp_and_coc
     FROM e2_assigned_volunteers av
     LEFT JOIN {{ ref('int_pc_applicant_policy_status') }} pol
         ON av.volunteer_id::numeric = pol.user_id::numeric
@@ -223,6 +225,23 @@ e2_cpp_coc_assigned_counts_by_chapter AS (
 ),
 
 -- Grain: one row per E2 chapter_id
+-- volunteers_new_this_year + volunteers_continuing must sum to volunteers_allocated_to_school
+-- (tested). Sourced from fct_volunteer_pipeline (chapter_id, is_allocated_to_school,
+-- is_recruited_new) rather than re-deriving the recruited-this-year join a third time -- this
+-- model already reaches into int_bubble__school_volunteer_backfilled directly for the same
+-- population elsewhere in this file (e2_recruited_volunteers); building the composition split off
+-- the shared marts fact instead keeps that one definition in one place.
+e2_volunteer_composition_by_chapter AS (
+    SELECT
+        chapter_id,
+        COUNT(DISTINCT volunteer_id) FILTER (WHERE is_recruited_new) AS volunteers_new_this_year,
+        COUNT(DISTINCT volunteer_id) FILTER (WHERE NOT is_recruited_new) AS volunteers_continuing
+    FROM {{ ref('fct_volunteer_pipeline') }}
+    WHERE is_allocated_to_school
+    GROUP BY chapter_id
+),
+
+-- Grain: one row per E2 chapter_id
 -- active_child_count from int_bubble__school_metrics; volunteer_count/volunteers_assigned_to_class
 -- from int_bubble__school_volunteer_metrics -- both already shared across other prod_* models,
 -- so reused here rather than re-deriving the same rollups.
@@ -240,7 +259,9 @@ e2_bubble_metrics_by_chapter AS (
         COALESCE(SUM(alloc.volunteers_currently_allocated), 0) AS volunteers_currently_allocated,
         COALESCE(SUM(cov.total_active_sections), 0) AS total_active_sections,
         COALESCE(SUM(cov.started_sections), 0) AS started_sections,
-        COALESCE(SUM(cov.fully_staffed_sections), 0) AS fully_staffed_sections
+        COALESCE(SUM(cov.fully_staffed_sections), 0) AS fully_staffed_sections,
+        COALESCE(SUM(comp.volunteers_new_this_year), 0) AS volunteers_new_this_year,
+        COALESCE(SUM(comp.volunteers_continuing), 0) AS volunteers_continuing
     FROM e2_schools_by_chapter esc
     LEFT JOIN {{ ref('int_bubble__school_metrics') }} sm
         ON esc.school_id = sm.school_id
@@ -256,6 +277,8 @@ e2_bubble_metrics_by_chapter AS (
         ON esc.chapter_id = alloc.chapter_id
     LEFT JOIN e2_class_coverage_by_chapter cov
         ON esc.chapter_id = cov.chapter_id
+    LEFT JOIN e2_volunteer_composition_by_chapter comp
+        ON esc.chapter_id = comp.chapter_id
     GROUP BY esc.chapter_id
 ),
 
@@ -285,6 +308,10 @@ final AS (
         -- join that would otherwise render identically as 0. See §3.5.
         COALESCE(bm.active_slot_class_section_count, 0) > 0 AS classes_set_up,
         COALESCE(bm.volunteer_count, 0) AS volunteers_allocated_to_school,
+        -- Composition of volunteers_allocated_to_school (tested to sum to it exactly): who's new
+        -- this year (recruited via the 26-27 opportunity) vs continuing from a prior year.
+        COALESCE(bm.volunteers_new_this_year, 0) AS volunteers_new_this_year,
+        COALESCE(bm.volunteers_continuing, 0) AS volunteers_continuing,
         COALESCE(bm.volunteers_assigned_to_class, 0) AS volunteers_assigned_to_class,
         COALESCE(bm.volunteers_signed_cpp_coc, 0) AS volunteers_compliant,
         COALESCE(bm.volunteers_signed_cpp_coc_assigned_to_class, 0) AS volunteers_compliant_assigned_to_class,
