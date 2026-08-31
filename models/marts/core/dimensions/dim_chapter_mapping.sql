@@ -11,9 +11,10 @@
 -- meaningful subset of chapters (confirmed by checking the actual data), where Bubble is the
 -- system of record. Falls back to the sheet's chapter_name only in the rare case partner_name
 -- itself is null.
--- state is the reverse: sheet's state is only filled for 80 of 562 chapters vs. Bubble's 562/562
--- (confirmed by checking the actual data), so it falls back to Bubble's state whenever the sheet's
--- is null.
+-- city_name and state both come from Bubble (partner.city / partner.state) only, not the sheet
+-- (2026-08-31 change, at user's explicit request) -- Bubble's partner table has both fields
+-- natively and is the system of record here, same as chapter_name above; the sheet is no longer
+-- consulted for either.
 -- co_name/cho_name no longer come from the sheet (sheet only ever carried co_id/cho_id, resolved to
 -- a name via a PC user join anyway -- the sheet added no information here, just another hop with a
 -- chance to be stale for the 454/561 partners it has no row for at all).
@@ -29,8 +30,6 @@ with mapping_sheet_deduped as (
     select distinct on (chapter_id)
         chapter_id,
         chapter_name,
-        city_name,
-        state,
         engine,
         chapter_status,
         worknode_id
@@ -54,8 +53,8 @@ cho_lookup as (
 select
     p.partner_id::text as chapter_id,
     coalesce(p.partner_name, mm.chapter_name) as chapter_name,
-    mm.city_name,
-    coalesce(mm.state, p.state) as state,
+    p.city as city_name,
+    p.state,
     p.co_name,
     cho.cho_name,
     mm.engine,
