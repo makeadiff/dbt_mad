@@ -85,6 +85,7 @@ person_contact_agg as (
 workforce_mapping as (
     select
         wf.user_id,
+        wf.worknode_id,
         wn.worknode_name as center,
         row_number() over (partition by wf.user_id order by wf.modified_datetime desc) as rn
     from {{ ref('stg_pc_workforce') }} wf
@@ -130,6 +131,7 @@ select
     con.email as "Email",
     pa.state as "State",
     wm.center as "Center",
+    wm.worknode_id as "WorkNodeId",
     u.user_id as "UserId",
     ab.added_by as "AddedBy",
     con.contact as "Contact",

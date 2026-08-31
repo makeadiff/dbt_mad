@@ -141,6 +141,50 @@ class_counts as (
     group by p.partner_id::text, scs2.academic_year
 ),
 
+-- classes_with_more_than_1_volunteer: sections (slot_class_section) that have more than one
+-- qualifying volunteer assigned -- single-volunteer sections are deliberately excluded, not just
+-- left at their own count. Uses the same active/archived branching as volunteers_assigned/
+-- slot_counts/class_counts above (live is_active=true rows for a currently-active year, preserved
+-- is_active=false rows for an archived one) so this stays consistent with the rest of this model,
+-- and resolves the academic year via school_academic_year_id the whole way through (never the raw
+-- text academic_year column, which is unreliable/partially empty on leaf tables).
+section_volunteer_counts as (
+    select
+        p.partner_id::text as chapter_id,
+        ay.label as academic_year,
+        scsv.slot_class_section_id,
+        count(distinct scsv.volunteer_id) filter (
+            where (st.is_ay_active and scsv.is_active = true and scsv.is_removed = false)
+               or (not st.is_ay_active and scsv.is_active = false and scsv.is_removed = false)
+        ) as active_volunteer_count
+    from {{ ref('int_bubble__slot_class_section_volunteer') }} scsv
+    join {{ ref('int_bubble__slot_class_section') }} scs2v
+        on scsv.slot_class_section_id = scs2v.slot_class_section_id
+    join {{ ref('int_bubble__slot') }} s
+        on scs2v.slot_id = s.slot_id
+    join {{ ref('int_bubble__school_academic_year') }} say
+        on s.school_academic_year_id = say.school_academic_year_id
+    join {{ ref('int_bubble__academic_year') }} ay
+        on say.academic_year_id = ay.academic_year_id
+    join {{ ref('int_bubble__partner') }} p
+        on say.school_id = p.partner_id
+    left join {{ ref('dim_school_academic_year_status') }} st
+        on say.school_id = st.school_id
+        and ay.label = st.academic_year
+    group by p.partner_id::text, ay.label, scsv.slot_class_section_id
+),
+
+classes_with_multiple_volunteers as (
+    select
+        chapter_id,
+        academic_year,
+        count(distinct slot_class_section_id) filter (
+            where active_volunteer_count > 1
+        ) as classes_with_more_than_1_volunteer
+    from section_volunteer_counts
+    group by chapter_id, academic_year
+),
+
 -- No scl.is_removed filter here (unlike school_class_sections below, which still needs it for
 -- section-level metrics): 49 of 117 chapters warehouse-wide have EVERY school_class row marked
 -- is_removed=true (likely sessionops-migration cleanup of the old school_class chain), yet 46 of
@@ -248,7 +292,8 @@ select
     slm.total_children_with_mentor,
     slm.children_without_mentor,
     slm.sections_without_volunteer,
-    vas.total_volunteers_assigned
+    vas.total_volunteers_assigned,
+    cmv.classes_with_more_than_1_volunteer
 from all_chapter_academic_years acay
 left join section_level_metrics slm
     on acay.chapter_id = slm.chapter_id
@@ -259,6 +304,9 @@ left join children_in_system cis
 left join volunteers_assigned vas
     on acay.chapter_id = vas.chapter_id
     and acay.academic_year = vas.academic_year
+left join classes_with_multiple_volunteers cmv
+    on acay.chapter_id = cmv.chapter_id
+    and acay.academic_year = cmv.academic_year
 left join slot_counts slc
     on acay.chapter_id = slc.chapter_id
     and acay.academic_year = slc.academic_year
