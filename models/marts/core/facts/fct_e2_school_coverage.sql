@@ -41,6 +41,14 @@
 -- child_class_section assignment would be counted on the mentor side but not in total_children_in_system,
 -- which had started producing a negative gap (mentor+non-mentor totals exceeding total_children_in_system
 -- for 2025-2026) once total_children_in_system alone got this filter.
+-- 2026-08-22 fix: chapter_school_classes (which anchors total_children_in_system) still carried a
+-- scl.is_removed=false filter, which reintroduced exactly the undercounting paragraph 18-24 above
+-- describes -- 49 of 117 chapters have EVERY school_class row marked is_removed=true, and 46 of
+-- those still had real, active child_class enrollment (up to 272 children for one chapter). Those
+-- chapters had ZERO rows in this model at all (not just a null total_children_in_system), so they
+-- silently vanished from every downstream dashboard. Filter removed from chapter_school_classes;
+-- children_in_system's own cc.is_removed=false / ch.is_active=true checks are what actually gatekeep
+-- a valid enrollment record, independent of the parent school_class row's archival state.
 
 with class_sections_with_slot as (
     select distinct class_section_id
@@ -133,6 +141,59 @@ class_counts as (
     group by p.partner_id::text, scs2.academic_year
 ),
 
+-- classes_with_more_than_1_volunteer: sections (slot_class_section) that have more than one
+-- qualifying volunteer assigned -- single-volunteer sections are deliberately excluded, not just
+-- left at their own count. Uses the same active/archived branching as volunteers_assigned/
+-- slot_counts/class_counts above (live is_active=true rows for a currently-active year, preserved
+-- is_active=false rows for an archived one) so this stays consistent with the rest of this model,
+-- and resolves the academic year via school_academic_year_id the whole way through (never the raw
+-- text academic_year column, which is unreliable/partially empty on leaf tables).
+section_volunteer_counts as (
+    select
+        p.partner_id::text as chapter_id,
+        ay.label as academic_year,
+        scsv.slot_class_section_id,
+        count(distinct scsv.volunteer_id) filter (
+            where (st.is_ay_active and scsv.is_active = true and scsv.is_removed = false)
+               or (not st.is_ay_active and scsv.is_active = false and scsv.is_removed = false)
+        ) as active_volunteer_count
+    from {{ ref('int_bubble__slot_class_section_volunteer') }} scsv
+    join {{ ref('int_bubble__slot_class_section') }} scs2v
+        on scsv.slot_class_section_id = scs2v.slot_class_section_id
+    join {{ ref('int_bubble__slot') }} s
+        on scs2v.slot_id = s.slot_id
+    join {{ ref('int_bubble__school_academic_year') }} say
+        on s.school_academic_year_id = say.school_academic_year_id
+    join {{ ref('int_bubble__academic_year') }} ay
+        on say.academic_year_id = ay.academic_year_id
+    join {{ ref('int_bubble__partner') }} p
+        on say.school_id = p.partner_id
+    left join {{ ref('dim_school_academic_year_status') }} st
+        on say.school_id = st.school_id
+        and ay.label = st.academic_year
+    group by p.partner_id::text, ay.label, scsv.slot_class_section_id
+),
+
+classes_with_multiple_volunteers as (
+    select
+        chapter_id,
+        academic_year,
+        count(distinct slot_class_section_id) filter (
+            where active_volunteer_count > 1
+        ) as classes_with_more_than_1_volunteer
+    from section_volunteer_counts
+    group by chapter_id, academic_year
+),
+
+-- No scl.is_removed filter here (unlike school_class_sections below, which still needs it for
+-- section-level metrics): 49 of 117 chapters warehouse-wide have EVERY school_class row marked
+-- is_removed=true (likely sessionops-migration cleanup of the old school_class chain), yet 46 of
+-- those still have real, active child_class enrollment underneath (up to 272 children for one
+-- chapter) -- confirmed 2026-08-22. Filtering on scl.is_removed here silently dropped those chapters
+-- out of all_chapter_academic_years entirely, so total_children_in_system came back with no row at
+-- all (not just null) for real, currently-bot-active chapters. child_class.is_removed=false in
+-- children_in_system below is what actually gatekeeps a valid enrollment record, independent of
+-- whatever archival state the parent school_class metadata row is in.
 chapter_school_classes as (
     select
         p.partner_id::text as chapter_id,
@@ -145,7 +206,24 @@ chapter_school_classes as (
         on say.academic_year_id = ay.academic_year_id
     join {{ ref('int_bubble__partner') }} p
         on say.school_id = p.partner_id
-    where scl.is_removed = false
+),
+
+-- chapters_with_no_active_year: chapters where EVERY school_academic_year row (across all years) has
+-- is_active=false -- confirmed 2026-08-22 for chapters 53/185/455/563: is_active is false on 100% of
+-- their academic-year rows, which exactly coincides with their school_class rows being fully removed
+-- and their children being flagged is_active=false. All three signals agree Bubble considers these
+-- chapters archived with no current year, even though DOTS shows live bot submissions through March
+-- 2026. For these chapters ONLY, children.is_active can't be trusted as a real exit signal, so
+-- children_in_system below trusts child_class.is_removed=false alone. For every other (normal)
+-- chapter, children.is_active=true is still enforced -- blanket-dropping it warehouse-wide was tested
+-- and adds 465 children back into chapters that already worked correctly, some of which are real
+-- exited kids (2,061 such stale-flag cases are already documented above), so it's scoped to only the
+-- chapters that actually show this three-way "no active year at all" pattern.
+chapters_with_no_active_year as (
+    select school_id::text as chapter_id
+    from {{ ref('int_bubble__school_academic_year') }}
+    group by school_id::text
+    having bool_and(is_active = false)
 ),
 
 children_in_system as (
@@ -159,8 +237,11 @@ children_in_system as (
         and cc.is_removed = false
     join {{ ref('int_bubble__children') }} ch
         on cc.child_id = ch.child_id
-        and ch.is_active = true
         and ch.is_removed = false
+    left join chapters_with_no_active_year cnay
+        on csc.chapter_id = cnay.chapter_id
+    where cnay.chapter_id is not null
+       or ch.is_active = true
     group by csc.chapter_id, csc.academic_year
 ),
 
@@ -211,7 +292,8 @@ select
     slm.total_children_with_mentor,
     slm.children_without_mentor,
     slm.sections_without_volunteer,
-    vas.total_volunteers_assigned
+    vas.total_volunteers_assigned,
+    cmv.classes_with_more_than_1_volunteer
 from all_chapter_academic_years acay
 left join section_level_metrics slm
     on acay.chapter_id = slm.chapter_id
@@ -222,6 +304,9 @@ left join children_in_system cis
 left join volunteers_assigned vas
     on acay.chapter_id = vas.chapter_id
     and acay.academic_year = vas.academic_year
+left join classes_with_multiple_volunteers cmv
+    on acay.chapter_id = cmv.chapter_id
+    and acay.academic_year = cmv.academic_year
 left join slot_counts slc
     on acay.chapter_id = slc.chapter_id
     and acay.academic_year = slc.academic_year

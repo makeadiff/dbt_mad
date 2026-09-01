@@ -22,6 +22,7 @@ select
     vc.chapter_id,
     cd.chapter_name,
     cd.city_name,
+    cd.state,
     cd.co_name,
     cd.cho_name,
     cd.engine,

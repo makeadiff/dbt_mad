@@ -23,15 +23,16 @@ select
     cc.chapter_id,
     cd.chapter_name,
     cd.city_name,
+    cd.state,
     cd.co_name,
-    cd.cho_name,
+    coalesce(cd.cho_name, 'Unassigned') as cho_name,
     cd.engine,
     case when ccs.is_currently_active then 'Active' else 'Inactive' end as chapter_status,
     cc.academic_year,
     cc.sessions_happened,
     cc.attended_sessions,
     cc.hours_of_support,
-    cc.attendance_pct,
+    coalesce(cc.attendance_pct, 0) as attendance_pct,
     cc.consistency_status
 from {{ ref('fct_e2_child_consistency') }} cc
 left join {{ ref('dim_chapter_mapping') }} cd
