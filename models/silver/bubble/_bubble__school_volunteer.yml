@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: int_bubble__school_volunteer
+    description: >
+      One row per school_volunteer_id after dedup (D1c: tiebreak is deterministic --
+      is_active desc, is_removed asc, modified_date desc, school_volunteer_id desc --
+      not the key itself). See SRI_DASHBOARD_SPEC.md D1(c) resolution: repeat
+      (school_id, volunteer_id, academic_year) triples are state changes over time,
+      not corruption, so grain is tested on the output key, not chased on a natural key.
+    columns:
+      - name: school_volunteer_id
+        tests:
+          - unique
+          - not_null
+
+  - name: int_bubble__school_volunteer_backfilled
+    description: >
+      One row per (volunteer_id, academic_year) -- currently non-removed school_volunteer rows,
+      null school_id backfilled via live class assignment. Enforced by dedup (2026-08-28): most
+      recent created_date, then highest school_id as a stable tiebreak, since school_volunteer
+      carries no field marking an old assignment superseded. is_multi_school flags every
+      volunteer this reduction actually changes.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - volunteer_id
+              - academic_year
+    columns:
+      - name: volunteer_id
+        tests:
+          - not_null
+      - name: is_multi_school
+        tests:
+          - not_null
+
+  - name: int_bubble__school_volunteer_metrics
+    description: >
+      One row per school_id. volunteers_recruited is COUNT(DISTINCT volunteer_id) (D1c),
+      so upstream row duplication cannot inflate it.
+    columns:
+      - name: school_id
+        tests:
+          - unique
+          - not_null
+      - name: volunteers_recruited
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true

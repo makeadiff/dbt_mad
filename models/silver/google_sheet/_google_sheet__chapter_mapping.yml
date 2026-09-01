@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: int_google_sheet__chapter_mapping
+    description: >
+      Chapter/CO/CHO/Fundraiser/Campaign mapping, hand-maintained in the master mapping
+      Google Sheet.
+    columns:
+      - name: city_name
+        tests:
+          - accepted_values:
+              arguments:
+                # D4: catches hand-entry errors on the sheet (e.g. "January" landing in
+                # city_name, 2026-08-26). This is the current list of cities MAD operates
+                # chapters in -- extend it when a new city launches, don't drop the test.
+                values:
+                  - Delhi
+                  - Chennai
+                  - Mumbai
+                  - Bangalore
+                  - Hyderabad
+                  - Nagpur
+                  - Gwalior
+                  - Cochin
+                  - Guntur
+                  - Coimbatore
+                  - Lucknow
+                  - Ahmedabad
+                  - Pune
+                  - Trivandrum
+                  - Mysore
+                  - North Goa
+                  - Vijayawada
+                  - Kolkata
+                  - Dehradun

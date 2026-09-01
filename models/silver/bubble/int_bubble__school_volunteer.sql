@@ -31,11 +31,17 @@ joined as (
     left join user_map on raw.volunteer_id = user_map.uuid
 ),
 
+-- D1(c): school_volunteer_id collisions observed in review (37 IDs / 96 rows, 2026-08-22) did not
+-- reproduce on 2026-08-26 (0 collisions) -- see SRI_DASHBOARD_SPEC.md D1(c) resolution. Repeat
+-- (school_id, volunteer_id, academic_year) triples are state changes over time, not corruption, so
+-- the dedup key stays school_volunteer_id rather than chasing a natural key. The original defect
+-- was an arbitrary tiebreak on ties in modified_date; this order_by makes the survivor deterministic
+-- and meaningful: active wins, then non-removed, then most recent, then a stable id.
 deduplicated as (
     {{ dbt_utils.deduplicate(
         relation='joined',
         partition_by='school_volunteer_id',
-        order_by='modified_date desc',
+        order_by='is_active desc, is_removed asc, modified_date desc, school_volunteer_id desc',
        )
     }}
 )

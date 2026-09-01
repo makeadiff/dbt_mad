@@ -1,0 +1,10 @@
+opportunity_id,opportunity_name,academic_year,is_volunteer_intake,notes
+125,MAD Volunteering 2023-24,2023-24,true,General volunteer intake funnel for this year
+401,MAD Volunteering 2024-25,2024-25,true,General volunteer intake funnel for this year
+2909,MAD Volunteering 2025-26,2025-26,true,General volunteer intake funnel for this year
+5246,MAD Volunteering 2026-27,2026-27,true,"Current year's general volunteer intake funnel -- the one this dashboard's Lead/Recruited stages read from"
+5548,DELHI ARYA E1 RECRUITMENT DRIVE 2026-27,2026-27,false,"E1 scope -- this dashboard is E2-only (WHERE engine = 'E2'), excluded"
+4322,CHO-Fellowship Application 2026-27,2026-27,false,"Different role (Chapter Head Organiser fellowship), not general volunteer recruitment"
+5375,Mysore Induction Test 2026-27,2026-27,false,"Test data (1 applicant), excluded"
+5746,Induction 2026-27 Bal Sahyog Delhi,2026-27,false,"Induction event opportunity, not an intake application -- induction is tracked via fct_pc_events instead"
+5747,New Volunteer Induction 2026-27 Bal Sahyog Delhi,2026-27,false,"Induction event opportunity, not an intake application -- induction is tracked via fct_pc_events instead"
