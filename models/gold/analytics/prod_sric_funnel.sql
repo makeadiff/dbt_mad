@@ -104,11 +104,18 @@ with base as (
     from {{ ref('fct_volunteer_pipeline') }}
 ),
 
+-- chapter_status (2026-08-28): joined the same way chapter/city already are, from
+-- prod_sric_dashboard_data -- not re-derived here, so this stays the one place chapter_status is
+-- computed. NULL where chapter_id is null (unattributed volunteers, §6.8 -- see below): do not
+-- coalesce this to false. An unattributed volunteer's chapter activity is unknown, not inactive,
+-- and collapsing it to false would let a chart-level "active only" filter silently drop them
+-- instead of showing them as their own group.
 chapter_names as (
     select distinct
         chapter_id,
         chapter,
-        city
+        city,
+        chapter_status
     from {{ ref('prod_sric_dashboard_data') }}
 ),
 
@@ -210,6 +217,7 @@ select
     a.chapter_id,
     cn.chapter,
     cn.city,
+    cn.chapter_status,
     a.volunteer_source,
     a.volunteers,
     -- Only Completed -> Recruited (intake stage_order 4) is a genuine progression -- see header.
