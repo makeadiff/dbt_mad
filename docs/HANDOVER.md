@@ -116,15 +116,22 @@ counts like "2,061 children warehouse-wide have `is_active=false`... but a stale
 bubble_raw.{academic_year,class,program,school_academic_year,school_class,class_section,
   class_section_subject,child,child_class,child_class_section,child_program,child_subject,
   batch_child,child_removal_log,school_holiday,school_session_detail,school_volunteer,slot,
-  slot_class_section,slot_class_section_volunteer}
+  slot_class_section,slot_class_section_volunteer,partner,user,subject}
   → prod_academic_year_migration, prod_class_migration, prod_program_migration,
     prod_school_academic_year_migration, prod_school_class_migration, prod_class_section_migration,
     prod_class_section_subject_migration, prod_child_migration, prod_child_class_migration,
     prod_child_class_section_migration, prod_child_program_migration, prod_child_subject_migration,
     prod_batch_child_migration, prod_child_removal_log_migration, prod_school_holiday_migration,
     prod_school_session_details_migration, prod_school_volunteer_migration, prod_slot_migration,
-    prod_slot_class_section_migration, prod_slot_class_section_volunteer_migration
+    prod_slot_class_section_migration, prod_slot_class_section_volunteer_migration,
+    prod_partner_migration, prod_user_migration, prod_subject_migration
 ```
+`prod_partner_migration`/`prod_user_migration` target Partner/User (`sessionops/models/partner.py`,
+`user.py`) - both diverge from the rest of this chain's shape: neither has created_by/updated_by, and
+Partner has no separate `removed` boolean (is_active is its only lifecycle signal). `prod_user_migration`
+is also a hard dependency for every other model's `created_by`/`updated_by`/`volunteer_id`/`co_id`
+resolution - the hardcoded admin fallback (`user_id 477022`) used throughout this chain only means
+anything once this model actually creates that row.
 Notable pattern across every one of these ~20 models (all documented per-file, confirmed by reading
 several in full):
 - Sourced **directly from `bubble_raw`**, not from `stg_bubble__*`, because bronze casts
