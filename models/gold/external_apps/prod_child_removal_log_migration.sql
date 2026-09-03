@@ -37,13 +37,29 @@
 -- deleted_at: no bubble equivalent and no business rule specified for this table (unlike
 -- slot_class_section/slot_class_section_volunteer) - left null.
 --
--- Raw child_removal_log_id has heavy duplication in bubble_raw (1889 rows / 288 distinct
--- ids as of this build, ~6.5x) - deduplicated to one row per id, keeping the latest by
--- Modified_Date, same convention as every other migration model.
+-- child_removal_log_id is NOT a reliable unique key in bubble_raw - unlike a normal
+-- Airbyte re-sync duplicate, every raw row here is already genuinely distinct (2288 raw
+-- rows / 2288 distinct "_id" - zero re-sync duplication). The repetition is instead
+-- Bubble's own child_removal_log_id counter assigning the SAME number to every child
+-- processed in one bulk-removal action - e.g. id 170 is shared by 42 different children,
+-- all with the identical Created_Date to the second (one bulk removal event). Only 598 of
+-- 2288 distinct ids exist, so deduplicating on child_removal_log_id (the prior approach,
+-- same convention as the other migration models) silently dropped ~1690 real children's
+-- removal records - same bug class as child_class_section_id/child_class_id, just far
+-- more severe here (184 colliding groups, up to 44 children per id vs. ~46 groups
+-- elsewhere).
+--
+-- Since child_removal_log_id is this table's target PK, its value can't be preserved
+-- as-is without collisions. Deduplicated on raw "_id" (the true unique Bubble row,
+-- defensive - no actual dupes found as of this build) and reassigned child_removal_log_id
+-- as a fresh sequential integer ordered by (created_at, _id) so every real record gets its
+-- own PK. The original bubble value is kept in bubble_child_removal_log_id for
+-- traceability back to the source system - it will legitimately repeat across rows.
 
 with raw as (
     select
-        "child_removal_log_id"::bigint as child_removal_log_id,
+        "_id" as raw_uid,
+        "child_removal_log_id"::bigint as bubble_child_removal_log_id,
         "child_id" as child_uuid,
         "co_id" as co_uuid,
         "school_id" as school_uuid,
@@ -80,7 +96,8 @@ user_map as (
 
 joined as (
     select
-        raw.child_removal_log_id,
+        raw.raw_uid,
+        raw.bubble_child_removal_log_id,
         child_map.child_id,
         user_map.user_id_number as co_id,
         partner_map.school_id,
@@ -100,14 +117,15 @@ joined as (
 deduplicated as (
     {{ dbt_utils.deduplicate(
         relation='joined',
-        partition_by='child_removal_log_id',
+        partition_by='raw_uid',
         order_by='updated_at desc',
        )
     }}
 )
 
 select
-    child_removal_log_id,
+    row_number() over (order by created_at, raw_uid) as child_removal_log_id,
+    bubble_child_removal_log_id,
     child_id,
     co_id,
     school_id,
