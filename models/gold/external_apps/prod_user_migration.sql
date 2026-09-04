@@ -18,8 +18,10 @@
 --
 -- email: bubble_raw.user has no email column at all - user_login is the closest equivalent
 -- (sampled values are plain email addresses, e.g. "jella@gmail.com"), and the target's own
--- doc note calls user_login "usually the email". Reused directly for the target's required
--- (non-nullable) email field rather than left null.
+-- doc note calls user_login "usually the email". Reused for the target's required
+-- (non-nullable) email field rather than left null - lowercased since 210/5654 rows have a
+-- capitalized first letter (e.g. "Aadhi.g711@gmail.com") and email should be
+-- case-normalized; user_login itself is left as-is (raw bubble value).
 --
 -- reporting_manager_user_id / reporting_manager_user_login: bubble already stores these as
 -- plain values in the same id/login space as this migration's own user_id/user_login (2245/
@@ -77,7 +79,7 @@ select
     user_id,
     user_display_name,
     user_login,
-    user_login as email,
+    lower(user_login) as email,
     contact,
     is_active,
     user_role,
