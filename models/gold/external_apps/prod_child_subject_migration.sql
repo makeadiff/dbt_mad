@@ -32,12 +32,25 @@
 -- authoritative for a child's *current* subjects - carried through as-is for migration,
 -- not reinterpreted here.
 --
--- Raw child_subject_id is not unique in bubble_raw (4924 rows / 4814 distinct ids as of
--- this build) - deduplicated to one row per id, keeping the latest by Modified_Date.
+-- child_subject_id is NOT a reliable unique key in bubble_raw - same bug class found in
+-- prod_child_removal_log_migration (see its header for the full writeup). Every raw row
+-- is already genuinely distinct (0 true re-sync duplication on "_id"); the repetition is
+-- Bubble's own child_subject_id counter assigning the same number to multiple children
+-- processed in one bulk action. As of this build: 5360 non-null-child_id rows / 5267
+-- distinct ids, 85 colliding groups, all 85 involving different children (0 true
+-- same-child dupes) - deduplicating on child_subject_id was silently dropping 93 real
+-- children's subject records.
+--
+-- Since child_subject_id is this table's target PK, deduplicated on raw "_id" instead
+-- (the true unique Bubble row, defensive - no actual dupes found as of this build) and
+-- reassigned child_subject_id as a fresh sequential integer ordered by (created_at, _id)
+-- so every real record gets its own PK. The original bubble value is kept in
+-- bubble_child_subject_id for traceability - it will legitimately repeat across rows.
 
 with raw as (
     select
-        "child_subject_id"::bigint as child_subject_id,
+        "_id" as raw_uid,
+        "child_subject_id"::bigint as bubble_child_subject_id,
         "child_id" as child_uuid,
         "class_section_subject_id" as class_section_subject_uuid,
         "is_active"::boolean as is_active,
@@ -63,7 +76,8 @@ user_map as (
 
 joined as (
     select
-        raw.child_subject_id,
+        raw.raw_uid,
+        raw.bubble_child_subject_id,
         child_map.child_id,
         class_section_subject_map.class_section_subject_id,
         raw.is_active,
@@ -81,14 +95,15 @@ joined as (
 deduplicated as (
     {{ dbt_utils.deduplicate(
         relation='joined',
-        partition_by='child_subject_id',
+        partition_by='raw_uid',
         order_by='updated_at desc',
        )
     }}
 )
 
 select
-    child_subject_id,
+    row_number() over (order by created_at, raw_uid) as child_subject_id,
+    bubble_child_subject_id,
     child_id as child_id,
     class_section_subject_id as class_section_subject_id,
     is_active,

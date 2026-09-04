@@ -26,12 +26,25 @@
 -- migration models. bubble tracks no separate "modified by" actor, so updated_by
 -- mirrors created_by.
 --
--- Raw school_holiday_id is NOT unique in bubble_raw (2 rows / 1 distinct id as of this
--- build) - deduplicated to one row per id, keeping the latest by Modified_Date.
+-- school_holiday_id is NOT a reliable unique key in bubble_raw - same bug class found in
+-- prod_child_removal_log_migration and int_bubble__school_holiday (see either header for
+-- the full writeup; int_bubble__school_holiday was actually the first place this pattern
+-- was caught). Every raw row is already genuinely distinct (0 true re-sync duplication on
+-- "_id"); the repetition is Bubble's own school_holiday_id counter assigning the same
+-- number to holiday records for different schools. As of this build: 3 raw rows / 1
+-- distinct id (all 3 for different schools) - deduplicating on school_holiday_id was
+-- silently dropping 2 of the 3 real holiday records.
+--
+-- Since school_holiday_id is this table's target PK, deduplicated on raw "_id" instead
+-- (the true unique Bubble row, defensive - no actual dupes found as of this build) and
+-- reassigned school_holiday_id as a fresh sequential integer ordered by (created_at,
+-- _id) so every real record gets its own PK. The original bubble value is kept in
+-- bubble_school_holiday_id for traceability - it will legitimately repeat across rows.
 
 with raw as (
     select
-        "school_holiday_id"::bigint as school_holiday_id,
+        "_id" as raw_uid,
+        "school_holiday_id"::bigint as bubble_school_holiday_id,
         "school_id" as school_uuid,
         case
             when "holiday_reason" ilike 'MAD event%' then 'mad_event'
@@ -60,7 +73,8 @@ user_map as (
 
 joined as (
     select
-        raw.school_holiday_id,
+        raw.raw_uid,
+        raw.bubble_school_holiday_id,
         partner_map.school_id,
         raw.holiday_reason,
         raw.start_date,
@@ -79,14 +93,15 @@ joined as (
 deduplicated as (
     {{ dbt_utils.deduplicate(
         relation='joined',
-        partition_by='school_holiday_id',
+        partition_by='raw_uid',
         order_by='updated_at desc',
        )
     }}
 )
 
 select
-    school_holiday_id,
+    row_number() over (order by created_at, raw_uid) as school_holiday_id,
+    bubble_school_holiday_id,
     school_id,
     holiday_reason,
     start_date,
