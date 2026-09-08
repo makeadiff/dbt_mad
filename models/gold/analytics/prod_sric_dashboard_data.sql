@@ -60,15 +60,49 @@ e2_schools_by_chapter AS (
 -- described for the sheet (marked active before conversion), just one layer further down.
 -- chapter_status is therefore is_currently_active AND converted; confirmed this combination
 -- reconciles to exactly 68, matching Session Ops. Grain: one row per E2 chapter_id
+--
+-- 2026-09-01 addendum: chapter_status now ALSO requires the sheet to mark the chapter Active
+-- (bool_or across its cho_id rows -- e2_chapters is grain chapter_id+cho_id, so a chapter with
+-- multiple CHOs must agree on at least one Active row). Bubble alone = 68, sheet alone = 64,
+-- intersection = 63 -- each source catches a failure mode the other misses:
+--   - the sheet leads Bubble on closures. 5 chapters (359, 567, 273, 325, 300) are still
+--     is_currently_active/converted in Bubble but the sheet has already dropped them --
+--     Bubble is confirmed to lag chapter closures, so the sheet's "no longer Active" wins.
+--   - Bubble holds MOU signature, which the sheet doesn't enforce. Chapter 455 is Active on the
+--     sheet with no mou_sign_date in Bubble -- the original D2 failure mode (marked active
+--     before signature) recurring one layer up. Requiring converted keeps that safeguard.
+-- This supersedes §6.9's Bubble-only rule; see the dated addendum there.
+--
+-- 2026-09-08 fix: a missing sheet row must NOT be treated the same as the sheet saying "Dropped
+-- out". The two are different facts -- "the sheet has no opinion" vs "the sheet actively says
+-- inactive" -- and collapsing them with COALESCE(sheet_active, false) meant a failed/empty
+-- Airbyte sync (which wipes every row, not a few) silently zeroed out chapter_status for every
+-- chapter with no error, no failing test, and no distinguishable symptom from a real mass
+-- closure. Only sheet_row_exists AND NOT sheet_active should force a chapter inactive; when the
+-- sheet has no row at all, defer entirely to Bubble's is_currently_active/converted determination
+-- rather than guessing. See assert_sric_active_chapter_count_in_range for the build-time backstop
+-- that still catches a genuine collapse to zero.
+e2_sheet_status_by_chapter AS (
+    SELECT
+        chapter_id,
+        BOOL_OR(chapter_status = 'Active') AS sheet_active
+    FROM {{ ref('int_google_sheet__chapter_mapping') }}
+    WHERE engine = 'E2'
+    GROUP BY chapter_id
+),
 e2_chapter_status AS (
     SELECT
         esc.chapter_id,
-        COALESCE(dcs.is_currently_active, false) AND COALESCE(bp.converted, false) AS chapter_status
+        COALESCE(dcs.is_currently_active, false)
+            AND COALESCE(bp.converted, false)
+            AND (shs.chapter_id IS NULL OR shs.sheet_active) AS chapter_status
     FROM e2_schools_by_chapter esc
     LEFT JOIN {{ ref('dim_chapter_current_status') }} dcs
         ON esc.school_id = dcs.school_id
     LEFT JOIN {{ ref('int_bubble__partner') }} bp
         ON esc.school_id = bp.partner_id1
+    LEFT JOIN e2_sheet_status_by_chapter shs
+        ON esc.chapter_id = shs.chapter_id
 ),
 
 -- Grain: one row per school_id
