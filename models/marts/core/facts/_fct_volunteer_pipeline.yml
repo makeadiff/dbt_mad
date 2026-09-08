@@ -11,6 +11,16 @@ models:
       - name: volunteer_id
         tests:
           - not_null
+      - name: chapter
+        description: >
+          Chapter name, looked up from int_google_sheet__chapter_mapping by chapter_id (2026-09-03,
+          matching prod_sric_dashboard_data/prod_sric_funnel column naming so Dalgo's native Chapter
+          filter can reach charts built on this fact). NULL where chapter_id is NULL (unattributed
+          intake leads) -- see chapter_id's own NULL semantics.
+      - name: city
+        description: >
+          Renamed from city_name 2026-09-03 to match prod_sric_dashboard_data/prod_sric_funnel, so
+          Dalgo's native City filter (which matches by column name) can reach charts on this fact.
       - name: is_compliant
         tests:
           - not_null

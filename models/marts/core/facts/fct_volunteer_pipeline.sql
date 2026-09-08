@@ -36,6 +36,15 @@
 -- Bubble and Platform Commons -- PC's CITY-type worknode carries a name, not an id that joins to
 -- anything on the Bubble side. Using the resolved name directly rather than inventing an id with
 -- nothing to key against.
+--
+-- city / chapter naming (2026-09-03): renamed city_name -> city and added a chapter name column,
+-- matching prod_sric_dashboard_data and prod_sric_funnel -- Dalgo's native filters match by
+-- column name, and the mismatch was silently breaking City/Chapter filter propagation on every
+-- chart built off this fact. chapter is looked up from int_google_sheet__chapter_mapping directly
+-- (the same source prod_sric_dashboard_data resolves ch.chapter_name from), not joined from
+-- prod_sric_dashboard_data itself -- that model already depends on this one downstream, so joining
+-- back to it here would be circular. Same pattern prod_sric_funnel uses (a distinct chapter_id ->
+-- name lookup, left-joined onto the final grain), just sourced one layer further upstream.
 
 with intake_opportunity as (
     select opportunity_id
@@ -52,6 +61,16 @@ e2_chapter_lookup as (
     inner join {{ ref('dim_bubble_partner') }} p
         on m.chapter_id::integer = p.bubble_partner_id::integer
     where m.engine = 'E2'
+),
+
+-- Chapter name lookup, same pattern prod_sric_funnel uses for its chapter_names CTE (a distinct
+-- chapter_id -> name mapping, left-joined onto the final grain) -- see the 2026-09-03 header note.
+chapter_names as (
+    select distinct
+        chapter_id,
+        chapter_name as chapter
+    from {{ ref('int_google_sheet__chapter_mapping') }}
+    where engine = 'E2'
 ),
 
 -- INTAKE: this year's cohort only, scoped to the single volunteer-intake opportunity (rule 1,
@@ -206,7 +225,8 @@ select
     '2026-27' as academic_year,
     c.volunteer_id,
     coalesce(m.chapter_id, i.intake_chapter_id) as chapter_id,
-    i.intake_city_name as city_name,
+    cn.chapter,
+    i.intake_city_name as city,
     i.lead_attribution,
 
     -- INTAKE (26-27 cohort only)
@@ -240,3 +260,4 @@ left join mapped_by_volunteer m on c.volunteer_id = m.volunteer_id
 left join allocated_by_volunteer al on c.volunteer_id = al.volunteer_id
 left join compliance_by_volunteer comp on c.volunteer_id = comp.volunteer_id
 left join induction_by_volunteer ind on c.volunteer_id = ind.volunteer_id
+left join chapter_names cn on coalesce(m.chapter_id, i.intake_chapter_id) = cn.chapter_id
