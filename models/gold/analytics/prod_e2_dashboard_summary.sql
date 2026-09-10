@@ -63,6 +63,8 @@ select
     coalesce(cbs.total_children_with_mentor, 0) as total_children_with_mentor,
     coalesce(cbs.total_volunteers_assigned, 0) as total_volunteers_assigned,
     coalesce(cbs.classes_with_more_than_1_volunteer, 0) as classes_with_more_than_1_volunteer,
+    coalesce(cbs.classes_started, 0) as classes_started,
+    coalesce(cbs.classes_not_started, 0) as classes_not_started,
     coalesce(vr.total_volunteers_in_school, 0) as total_volunteers_in_school,
     coalesce(vm.total_volunteers, 0) as total_volunteers,
     coalesce(vm.volunteers_healthy, 0) as volunteers_healthy,

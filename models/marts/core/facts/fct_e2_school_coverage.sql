@@ -36,6 +36,10 @@
 -- exactly this: exited children never cleaned up. Deliberately did NOT also filter
 -- child_class.is_active=true itself -- tested it and it collapses 2025-2026 from 3,327 to 244 children,
 -- which is the exact undercounting the paragraph above warns about, not a fix.
+-- classes_started/classes_not_started (2026-09-08): whether a slot_class_section has had at least one
+-- WA Bot (DOTS) attendance submission logged against it for the year, per
+-- fct_e2_volunteer_attendance_by_slot_date. Partitions the exact same population/branching as
+-- total_classes, so classes_started + classes_not_started always equals total_classes.
 -- The same is_active=true filter (via int_bubble__children) is also applied to total_children_with_mentor/
 -- children_without_mentor below, for the same reason: without it, an exited child who still has a
 -- child_class_section assignment would be counted on the mentor side but not in total_children_in_system,
@@ -122,23 +126,61 @@ slot_counts as (
     group by p.partner_id::text, ay.label
 ),
 
+-- classes_with_attendance: slot_class_sections that have at least one WA Bot (DOTS) attendance
+-- submission logged against them for the year -- fct_e2_volunteer_attendance_by_slot_date is that
+-- submission log, one row per (volunteer, slot_class_section_id, date_of_slot) entry. Existence of
+-- any row here is what "started" means; no filtering on attendance value itself (an entry recorded
+-- as absent still means the class ran and the bot was used to log it).
+classes_with_attendance as (
+    select distinct slot_class_section_id, academic_year
+    from {{ ref('fct_e2_volunteer_attendance_by_slot_date') }}
+),
+
+-- classes_started/classes_not_started share class_counts' exact population and active/archived
+-- branching (same slot_class_section rows total_classes counts) so "started" + "not started" always
+-- sum to total_classes for a given chapter/year -- they're a partition of it, not a separate count.
+-- academic_year resolved via slot -> school_academic_year -> academic_year (FK chain), NOT
+-- slot_class_section's own raw academic_year text column: confirmed 2026-09-08 that raw
+-- academic_year is blank on every slot_class_section row for 2026-2027 (checked chapter 181 and
+-- others) even though the FK chain correctly resolves them to '2026-2027' -- the same
+-- text-vs-FK divergence this project has been bitten by before. Using the raw column here silently
+-- undercounted total_classes to 0 for any chapter/year where it's blank. All other CTEs in this file
+-- (volunteers_assigned, slot_counts, section_volunteer_counts) already resolve academic_year this way;
+-- this CTE was the odd one out.
 class_counts as (
     select
         p.partner_id::text as chapter_id,
-        scs2.academic_year,
+        ay.label as academic_year,
         count(distinct scs2.slot_class_section_id) filter (
             where (st.is_ay_active and scs2.is_active = true and scs2.is_removed = false)
                or (not st.is_ay_active and scs2.is_active = false and scs2.is_removed = false)
-        ) as total_classes
+        ) as total_classes,
+        count(distinct scs2.slot_class_section_id) filter (
+            where ((st.is_ay_active and scs2.is_active = true and scs2.is_removed = false)
+               or (not st.is_ay_active and scs2.is_active = false and scs2.is_removed = false))
+              and cwa.slot_class_section_id is not null
+        ) as classes_started,
+        count(distinct scs2.slot_class_section_id) filter (
+            where ((st.is_ay_active and scs2.is_active = true and scs2.is_removed = false)
+               or (not st.is_ay_active and scs2.is_active = false and scs2.is_removed = false))
+              and cwa.slot_class_section_id is null
+        ) as classes_not_started
     from {{ ref('int_bubble__slot_class_section') }} scs2
-    join {{ ref('int_bubble__class_section') }} cs2
-        on scs2.class_section_id = cs2.class_section_id
+    join {{ ref('int_bubble__slot') }} s
+        on scs2.slot_id = s.slot_id
+    join {{ ref('int_bubble__school_academic_year') }} say
+        on s.school_academic_year_id = say.school_academic_year_id
+    join {{ ref('int_bubble__academic_year') }} ay
+        on say.academic_year_id = ay.academic_year_id
     join {{ ref('int_bubble__partner') }} p
-        on cs2.school_id = p.partner_id
+        on say.school_id = p.partner_id
     left join {{ ref('dim_school_academic_year_status') }} st
-        on cs2.school_id = st.school_id
-        and scs2.academic_year = st.academic_year
-    group by p.partner_id::text, scs2.academic_year
+        on say.school_id = st.school_id
+        and ay.label = st.academic_year
+    left join classes_with_attendance cwa
+        on scs2.slot_class_section_id = cwa.slot_class_section_id
+        and ay.label = cwa.academic_year
+    group by p.partner_id::text, ay.label
 ),
 
 -- classes_with_more_than_1_volunteer: sections (slot_class_section) that have more than one
@@ -293,7 +335,9 @@ select
     slm.children_without_mentor,
     slm.sections_without_volunteer,
     vas.total_volunteers_assigned,
-    cmv.classes_with_more_than_1_volunteer
+    cmv.classes_with_more_than_1_volunteer,
+    clc.classes_started,
+    clc.classes_not_started
 from all_chapter_academic_years acay
 left join section_level_metrics slm
     on acay.chapter_id = slm.chapter_id
