@@ -52,7 +52,13 @@ session_not_happened_breakdown_mix as (
     select chapter_id, academic_year, 'Session Not Happened Breakdown' as metric_group, 'Cancelled' as category, total_cancellations as count
     from {{ ref('fct_e2_sessions_summary') }}
     union all
-    select chapter_id, academic_year, 'Session Not Happened Breakdown', 'Absent', total_absenteeism
+    select chapter_id, academic_year, 'Session Not Happened Breakdown', 'Volunteer Absent', classes_with_volunteer_absenteeism
+    from {{ ref('fct_e2_sessions_summary') }}
+    union all
+    select chapter_id, academic_year, 'Session Not Happened Breakdown', 'No Volunteer Assigned', classes_without_assigned_volunteer
+    from {{ ref('fct_e2_sessions_summary') }}
+    union all
+    select chapter_id, academic_year, 'Session Not Happened Breakdown', 'Other/Unexplained', classes_unexplained_other
     from {{ ref('fct_e2_sessions_summary') }}
 ),
 
@@ -64,6 +70,28 @@ session_delivery_mix as (
     from {{ ref('fct_e2_sessions_summary') }}
     union all
     select chapter_id, academic_year, 'Session Delivery', 'Happened', total_sessions_happened
+    from {{ ref('fct_e2_sessions_summary') }}
+),
+
+-- Unlike session_happened_breakdown_mix (splits only the Happened subset into Original/Substitute)
+-- and session_not_happened_breakdown_mix (splits only the non-Happened remainder), this is the full
+-- partition of total_planned_sessions into all 5 buckets -- these 5 categories always sum to exactly
+-- total_planned_sessions for a given chapter+academic_year, so this is the one to use for a single
+-- donut/100%-stacked-bar showing the complete "out of planned classes" picture.
+planned_session_breakdown_mix as (
+    select chapter_id, academic_year, 'Planned Session Breakdown' as metric_group, 'Conducted' as category, total_sessions_happened as count
+    from {{ ref('fct_e2_sessions_summary') }}
+    union all
+    select chapter_id, academic_year, 'Planned Session Breakdown', 'Cancelled', total_cancellations
+    from {{ ref('fct_e2_sessions_summary') }}
+    union all
+    select chapter_id, academic_year, 'Planned Session Breakdown', 'Volunteer Absent', classes_with_volunteer_absenteeism
+    from {{ ref('fct_e2_sessions_summary') }}
+    union all
+    select chapter_id, academic_year, 'Planned Session Breakdown', 'No Volunteer Assigned', classes_without_assigned_volunteer
+    from {{ ref('fct_e2_sessions_summary') }}
+    union all
+    select chapter_id, academic_year, 'Planned Session Breakdown', 'Other/Unexplained', classes_unexplained_other
     from {{ ref('fct_e2_sessions_summary') }}
 ),
 
@@ -103,6 +131,8 @@ unpivoted as (
     select * from session_not_happened_breakdown_mix
     union all
     select * from session_delivery_mix
+    union all
+    select * from planned_session_breakdown_mix
     union all
     select * from cancellation_reason_mix
     union all
