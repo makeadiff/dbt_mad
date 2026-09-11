@@ -87,6 +87,15 @@
 -- stage_name is prefixed with its order ("1 · Draft") because Dalgo's bar chart sorts its X axis
 -- alphabetically, not by a hidden order column (confirmed 2026-08-27) -- stage_order is kept as
 -- its own column for models/tests, but the chart needs the order encoded in the label itself.
+--
+-- NEEDED REFERENCE ROW (2026-09-11, coverage block only): stage_order 0, stage_name "0 · Needed",
+-- volunteers = that chapter's volunteers_required from prod_sric_dashboard_data, volunteer_source
+-- NULL (a requirement isn't split new-vs-continuing -- there's one target, not two populations).
+-- This is the coverage chart's title change to "Coverage vs requirement": every other stage now
+-- reads against this leftmost bar instead of the chart just listing state counts. Needed is a
+-- TARGET, not a state a volunteer occupies, so it deliberately sits outside
+-- assert_sric_funnel_coverage_monotonic's state-nesting invariants -- do not add stage_order = 0
+-- to that test.
 
 with base as (
     select
@@ -116,6 +125,15 @@ chapter_names as (
         chapter,
         city,
         chapter_status
+    from {{ ref('prod_sric_dashboard_data') }}
+),
+
+-- Feeds the Needed reference row below -- one authoritative requirement per chapter, same source
+-- as every other chapter-level figure in this model. Grain: one row per chapter_id.
+chapter_requirements as (
+    select distinct
+        chapter_id,
+        volunteers_required
     from {{ ref('prod_sric_dashboard_data') }}
 ),
 
@@ -194,10 +212,29 @@ coverage_counts as (
     group by d.stage_order, d.stage_name, cc.chapter_id, sd.volunteer_source
 ),
 
+-- Needed reference row (see header, 2026-09-11): one per coverage chapter, stage_order 0,
+-- volunteer_source NULL. Sourced from coverage_chapters (not chapter_requirements alone) so this
+-- row only appears for chapters already present in the coverage block -- same dense-but-not-wider
+-- rule the rest of this model follows.
+needed_row as (
+    select
+        'coverage' as funnel_block,
+        0 as stage_order,
+        '0 · Needed' as stage_name,
+        cc.chapter_id,
+        cast(null as text) as volunteer_source,
+        coalesce(cr.volunteers_required, 0) as volunteers
+    from coverage_chapters cc
+    left join chapter_requirements cr
+        on cc.chapter_id = cr.chapter_id
+),
+
 all_stages as (
     select * from intake_counts
     union all
     select * from coverage_counts
+    union all
+    select * from needed_row
 ),
 
 with_conversion as (
