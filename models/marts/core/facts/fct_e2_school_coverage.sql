@@ -53,11 +53,30 @@
 -- silently vanished from every downstream dashboard. Filter removed from chapter_school_classes;
 -- children_in_system's own cc.is_removed=false / ch.is_active=true checks are what actually gatekeep
 -- a valid enrollment record, independent of the parent school_class row's archival state.
+-- sections_with_assigned_volunteer/sections_without_assigned_volunteer (2026-09-11) are built directly
+-- off slot_class_section_volunteer, unlike the older sections_without_volunteer above (which, despite
+-- its name, actually measures "no slot scheduled," not "no volunteer assigned" -- kept as-is since
+-- prod_e2_dashboard_summary already depends on it). Feeds fct_e2_sessions_summary's
+-- classes_without_assigned_volunteer breakdown.
 
 with class_sections_with_slot as (
     select distinct class_section_id
     from {{ ref('int_bubble__slot_class_section') }}
     where is_removed = false
+),
+
+-- Built directly off slot_class_section_volunteer (an actual volunteer assignment row), not just
+-- slot existence like class_sections_with_slot above -- despite sections_without_volunteer's name
+-- below, it's really "no slot scheduled," not "no volunteer." The two happen to be the same
+-- population today (confirmed 2026-09-11: 0 of 466 slotted sections have zero volunteer rows), but
+-- this is the correct signal to depend on going forward if that ever stops holding.
+class_sections_with_active_volunteer as (
+    select distinct scs.class_section_id
+    from {{ ref('int_bubble__slot_class_section') }} scs
+    join {{ ref('int_bubble__slot_class_section_volunteer') }} scsv
+        on scs.slot_class_section_id = scsv.slot_class_section_id
+        and scsv.is_removed = false
+    where scs.is_removed = false
 ),
 
 school_class_sections as (
@@ -302,7 +321,9 @@ section_level_metrics as (
         count(distinct ccs.child_id) filter (
             where cws.class_section_id is null and ch.is_active = true and ch.is_removed = false
         ) as children_without_mentor,
-        count(distinct scs.class_section_id) filter (where cws.class_section_id is null) as sections_without_volunteer
+        count(distinct scs.class_section_id) filter (where cws.class_section_id is null) as sections_without_volunteer,
+        count(distinct scs.class_section_id) filter (where cav.class_section_id is not null) as sections_with_assigned_volunteer,
+        count(distinct scs.class_section_id) filter (where cav.class_section_id is null) as sections_without_assigned_volunteer
     from school_class_sections scs
     left join {{ ref('int_bubble__child_class_section') }} ccs
         on scs.class_section_id = ccs.class_section_id
@@ -311,6 +332,8 @@ section_level_metrics as (
         on ccs.child_id = ch.child_id
     left join class_sections_with_slot cws
         on scs.class_section_id = cws.class_section_id
+    left join class_sections_with_active_volunteer cav
+        on scs.class_section_id = cav.class_section_id
     group by scs.chapter_id, scs.academic_year
 ),
 
@@ -334,6 +357,8 @@ select
     slm.total_children_with_mentor,
     slm.children_without_mentor,
     slm.sections_without_volunteer,
+    slm.sections_with_assigned_volunteer,
+    slm.sections_without_assigned_volunteer,
     vas.total_volunteers_assigned,
     cmv.classes_with_more_than_1_volunteer,
     clc.classes_started,
