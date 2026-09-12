@@ -1,0 +1,79 @@
+version: 2
+
+models:
+  - name: prod_sric_chapters_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per chapter, sourced from prod_sric_dashboard_data.
+    columns:
+      - name: Chapter
+        description: Chapter name.
+      - name: City
+        description: City the chapter is in.
+      - name: Chapter organiser
+        description: Name of the chapter's CHO.
+      - name: Chapter running this year?
+        description: Boolean filter -- true if the chapter is active this academic year (see prod_sric_dashboard_data's chapter_status).
+      - name: Chapter running this year
+        description: Pie-slice label for the same fact as "Chapter running this year?" -- "Running this year" or "Not this year".
+      - name: Chapter has classes ready?
+        description: Boolean filter -- true if the chapter has at least one class section with a live slot link (see prod_sric_dashboard_data's classes_set_up).
+      - name: Chapter has classes ready
+        description: Pie-slice label for the same fact as "Chapter has classes ready?" -- "Classes ready" or "Still setting up".
+      - name: Class sections
+        description: Count of active, slot-linked class sections at the chapter.
+      - name: Children enrolled
+        description: Active children enrolled at the chapter's school.
+      - name: Children waiting for a class
+        description: Enrolled active children not currently placed in a live-slot class section.
+      - name: Volunteers placed at a school
+        description: Volunteers currently allocated to the chapter's school.
+      - name: Volunteers new this year
+        description: Of those placed at a school, hired via this year's (26-27) intake opportunity.
+      - name: Volunteers returning from last year
+        description: Of those placed at a school, everyone not new this year.
+      - name: Volunteers placed in a class
+        description: Volunteers currently assigned to a live class section.
+      - name: Volunteers waiting for a class
+        description: Recruited volunteers not currently placed in a class.
+      - name: Volunteers who signed child safety policies
+        description: Volunteers compliant on CPP/COC (any application).
+      - name: Volunteers who have not signed child safety policies
+        description: "Derived here (not a prod_sric_dashboard_data column): Volunteers placed at a school minus Volunteers who signed child safety policies."
+      - name: Volunteers placed at a school but not yet in a class
+        description: "Derived here (not a prod_sric_dashboard_data column): Volunteers placed at a school minus Volunteers placed in a class."
+      - name: Volunteers needed
+        description: Recruitment target (active_slot_class_section_count x volunteers_per_section, from seed_sri_engine_constants).
+      - name: Volunteers still to recruit
+        description: Volunteers needed minus Volunteers placed at a school, floored at 0.
+      - name: Volunteers as % of needed
+        description: Volunteers placed at a school as a percentage of Volunteers needed. Can exceed 100% -- an achievement-vs-target ratio, not a population ratio.
+      - name: People who applied through this chapter's link
+        description: This chapter's own sourcing-link (campaign-code) applicants who've applied but not yet converted to a hire.
+      - name: Applications needed
+        description: Volunteers needed x leads_per_recruit (from seed_sri_engine_constants).
+      - name: Applications still needed
+        description: Volunteers still to recruit x leads_per_recruit.
+
+  - name: prod_sric_funnel_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per (funnel_block, stage, chapter_id, volunteer_source),
+      sourced from prod_sric_funnel -- renames columns only, does not reshape rows.
+    columns:
+      - name: Block
+        description: "'intake', 'coverage', or 'intake_to_class' -- see prod_sric_funnel's header for why these must never be compared or summed across each other."
+      - name: Stage order
+        description: Numeric stage position within a block. Use this, not Stage, for any ordering or nesting logic.
+      - name: Stage
+        description: Display label for the stage, order-prefixed (e.g. "2 · Signed child safety policies") so Dalgo's alphabetical X-axis sort renders in the intended order.
+      - name: Chapter
+        description: Chapter name. NULL for intake_to_class (national) and for unattributed intake leads.
+      - name: City
+        description: City. NULL under the same conditions as Chapter.
+      - name: Chapter running this year?
+        description: Boolean -- true if the chapter is active this academic year. NULL where Chapter is NULL (unknown, not false).
+      - name: Volunteers
+        description: Count of volunteers at this stage.
+      - name: Conversion %
+        description: Percent conversion from the previous stage. Only meaningful (non-NULL) where stage_relationship is 'exclusive' at the one genuine transition, or 'nested' at every stage -- NULL everywhere else. See prod_sric_funnel's header.
