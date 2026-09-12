@@ -19,13 +19,41 @@
 -- volunteers_signed_cpp_coc / volunteers_signed_cpp_coc_assigned_to_class treat a volunteer as
 -- "signed" only when both CPP and COC are accepted on their latest application (see
 -- int_pc_applicant_policy_status's header for the unverified truthy-value assumption).
--- Grain: one row per E2 master mapping sheet row (chapter_id + cho_id)
+-- Grain: one row per E2 chapter_id (dbt_utils/assert_sric_dashboard_data_unique_chapter_id
+-- enforces this; see the two fixes below for why it wasn't true before).
 
 -- D2 fix: chapter_status no longer comes from the sheet (see below) -- the sheet is a hand-entered
 -- column validated only against 3 allowed values, and Sheet-Active (71) disagrees with
 -- Bubble-converted (68) because some chapters are marked Active before MOU signature. The sheet is
 -- kept here only for cho_id and sourcing_campaign_code, which no dim/fact carries.
-WITH e2_chapters AS (
+--
+-- GRAIN FIX (2026-09-12): this was previously "one row per E2 master mapping sheet row
+-- (chapter_id + cho_id)" -- a claim nothing enforced, and every consumer already treated it as
+-- one-row-per-chapter (prod_sric_funnel defends with SELECT DISTINCT; prod_chapter_campaign_daily
+-- does not, and would silently double-render any duplicated ACTIVE chapter's whole campaign
+-- window). Investigation found the 113-rows-over-107-distinct-chapters gap was not six genuine
+-- multi-CHO chapters -- it's exactly one duplicate (chapter 529: two byte-for-byte identical sheet
+-- rows, "Dropped out", no CHO on either -- a copy-paste artifact, not a handover or shared
+-- assignment) plus five rows with chapter_id NULL entirely (orphaned sheet rows, never assigned an
+-- id -- reported separately for Ops to fix on the sheet, see PR description). Both are now handled
+-- here so every downstream consumer inherits a true one-row-per-chapter grain instead of having to
+-- defend against it individually:
+--   1. chapter_id IS NULL rows are excluded -- they can't join to anything chapter-scoped anyway.
+--   2. Duplicate (chapter_id, cho_id) rows are deduped, keeping one deterministically (lowest
+--      cho_id, nulls last) -- if a chapter ever legitimately has two different CHOs, this keeps
+--      the first alphabetically rather than fabricating a merge; that's a real handover case to
+--      solve with a proper cho_id list column if/when it occurs, not silently averaged here.
+WITH e2_chapters_raw AS (
+    SELECT
+        *,
+        ROW_NUMBER() OVER (
+            PARTITION BY chapter_id ORDER BY cho_id NULLS LAST
+        ) AS chapter_row_rank
+    FROM {{ ref('int_google_sheet__chapter_mapping') }}
+    WHERE engine = 'E2'
+      AND chapter_id IS NOT NULL
+),
+e2_chapters AS (
     SELECT
         city_name,
         state,
@@ -38,8 +66,8 @@ WITH e2_chapters AS (
         cho_name,
         engine,
         sourcing_campaign_code
-    FROM {{ ref('int_google_sheet__chapter_mapping') }}
-    WHERE engine = 'E2'
+    FROM e2_chapters_raw
+    WHERE chapter_row_rank = 1
 ),
 
 -- Grain: one row per E2 chapter_id + school_id (1:1 -- chapter_id equals the Bubble partner id)
@@ -120,17 +148,31 @@ active_slot_counts_per_school AS (
     GROUP BY cs.school_id
 ),
 
--- Formula (D10 fix): active_slot_class_section_count * 2. active_slot_class_section_count is
--- already COUNT(DISTINCT slot_class_section_id) -- a distinct count of (slot x section) pairs --
--- so multiplying by active_slot_count as well double-counted slots (2 slots x 5 sections/slot
--- produced 40 instead of the correct 20). See SRI_DASHBOARD_SPEC.md §3.1/D10.
+-- ENGINE CONSTANTS (2026-09-12): volunteers_per_section and leads_per_recruit used to be literal
+-- 2 and 3 inline below -- moved to seed_sri_engine_constants (engine, volunteers_per_section,
+-- leads_per_recruit) so adding E1 is a new seed row, not a rewrite of this model's arithmetic.
+-- This model is E2-only (see WHERE engine = 'E2' above), so a single CROSS JOIN of the E2 row is
+-- safe here; an E1 build would need to carry engine through the join chain instead of a bare
+-- cross join, but that's out of scope for this PR.
+engine_constants AS (
+    SELECT volunteers_per_section, leads_per_recruit
+    FROM {{ ref('seed_sri_engine_constants') }}
+    WHERE engine = 'E2'
+),
+
+-- Formula (D10 fix): active_slot_class_section_count * volunteers_per_section (2 for E2).
+-- active_slot_class_section_count is already COUNT(DISTINCT slot_class_section_id) -- a distinct
+-- count of (slot x section) pairs -- so multiplying by active_slot_count as well double-counted
+-- slots (2 slots x 5 sections/slot produced 40 instead of the correct 20). See
+-- SRI_DASHBOARD_SPEC.md §3.1/D10.
 volunteer_recruitment_target_per_school AS (
     SELECT
         school_id,
         active_slot_count,
         active_slot_class_section_count,
-        (active_slot_class_section_count * 2)::integer AS volunteer_recruitment_target
+        (active_slot_class_section_count * ec.volunteers_per_section)::integer AS volunteer_recruitment_target
     FROM active_slot_counts_per_school
+    CROSS JOIN engine_constants ec
 ),
 
 -- D3 fix: recruited population now matches int_bubble__school_volunteer_metrics's D1(b)/D1(c)
@@ -258,6 +300,55 @@ e2_cpp_coc_assigned_counts_by_chapter AS (
     GROUP BY chapter_id
 ),
 
+-- CHILDREN WAITING (2026-09-12): active children enrolled at the chapter's school(s) minus
+-- children currently assigned to a section with a LIVE SLOT LINK -- deliberately NOT Bubble's own
+-- dim_class_section.is_active flag, which is true for 763 sections nationally but only 112 of
+-- those have a live slot (matching classes_set_up's population exactly, §6.4/§6.5). Using Bubble's
+-- raw flag gives ~1 child waiting nationally, which is not a real number -- almost every enrolled
+-- child has SOME class marked active in Bubble whether or not it actually runs. This CTE reuses
+-- the same live-slot population as e2_class_coverage_by_chapter/classes_set_up above so
+-- "waiting" and "ready" agree on what counts as a functioning class.
+-- Grain: one row per E2 chapter_id
+e2_live_class_sections AS (
+    SELECT DISTINCT
+        esc.chapter_id,
+        cs.class_section_id
+    FROM e2_schools_by_chapter esc
+    INNER JOIN {{ ref('dim_class_section') }} cs
+        ON esc.school_id = cs.school_id
+    INNER JOIN {{ ref('int_bubble__slot_class_section') }} scs
+        ON scs.class_section_id = cs.class_section_id
+    WHERE cs.is_active = true
+      AND scs.is_removed = false
+      AND scs.is_active = true
+),
+e2_children_placed_by_chapter AS (
+    SELECT
+        ls.chapter_id,
+        COUNT(DISTINCT fccs.child_id) AS children_placed
+    FROM e2_live_class_sections ls
+    INNER JOIN {{ ref('fct_child_class_section') }} fccs
+        ON fccs.class_section_id = ls.class_section_id
+    GROUP BY ls.chapter_id
+),
+
+-- LEADS APPLIED VIA LINK (2026-09-12): this chapter's own sourcing-link applicants (lead_attribution
+-- = 'chapter' -- the one ID-resolvable attribution path, via campaign code, see
+-- fct_volunteer_pipeline's KNOWN GAP) who have applied but not yet converted to a hire. This is the
+-- chase list -- distinct from city/open_pool/chapter_unmatched leads, which can't be attributed to
+-- one chapter at all.
+-- Grain: one row per E2 chapter_id
+e2_leads_applied_via_link_by_chapter AS (
+    SELECT
+        chapter_id,
+        COUNT(DISTINCT volunteer_id) AS leads_applied_via_link
+    FROM {{ ref('fct_volunteer_pipeline') }}
+    WHERE lead_attribution = 'chapter'
+      AND is_applied = true
+      AND is_recruited_new = false
+    GROUP BY chapter_id
+),
+
 -- Grain: one row per E2 chapter_id
 -- volunteers_new_this_year + volunteers_continuing must sum to volunteers_allocated_to_school
 -- (tested). Sourced from fct_volunteer_pipeline (chapter_id, is_allocated_to_school,
@@ -295,7 +386,8 @@ e2_bubble_metrics_by_chapter AS (
         COALESCE(SUM(cov.started_sections), 0) AS started_sections,
         COALESCE(SUM(cov.fully_staffed_sections), 0) AS fully_staffed_sections,
         COALESCE(SUM(comp.volunteers_new_this_year), 0) AS volunteers_new_this_year,
-        COALESCE(SUM(comp.volunteers_continuing), 0) AS volunteers_continuing
+        COALESCE(SUM(comp.volunteers_continuing), 0) AS volunteers_continuing,
+        COALESCE(SUM(cp.children_placed), 0) AS children_placed
     FROM e2_schools_by_chapter esc
     LEFT JOIN {{ ref('int_bubble__school_metrics') }} sm
         ON esc.school_id = sm.school_id
@@ -313,6 +405,8 @@ e2_bubble_metrics_by_chapter AS (
         ON esc.chapter_id = cov.chapter_id
     LEFT JOIN e2_volunteer_composition_by_chapter comp
         ON esc.chapter_id = comp.chapter_id
+    LEFT JOIN e2_children_placed_by_chapter cp
+        ON esc.chapter_id = cp.chapter_id
     GROUP BY esc.chapter_id
 ),
 
@@ -350,7 +444,7 @@ final AS (
         COALESCE(bm.volunteers_signed_cpp_coc, 0) AS volunteers_compliant,
         COALESCE(bm.volunteers_signed_cpp_coc_assigned_to_class, 0) AS volunteers_compliant_assigned_to_class,
         COALESCE(bm.volunteer_recruitment_target, 0) AS volunteers_required,
-        COALESCE(bm.volunteer_recruitment_target, 0) * 3 AS leads_required,
+        COALESCE(bm.volunteer_recruitment_target, 0) * ec.leads_per_recruit AS leads_required,
         GREATEST(
             0,
             COALESCE(bm.volunteer_recruitment_target, 0) - COALESCE(bm.volunteer_count, 0)
@@ -358,7 +452,19 @@ final AS (
         GREATEST(
             0,
             COALESCE(bm.volunteer_recruitment_target, 0) - COALESCE(bm.volunteer_count, 0)
-        ) * 3 AS leads_still_to_source,
+        ) * ec.leads_per_recruit AS leads_still_to_source,
+        -- CHILDREN WAITING (2026-09-12, see e2_children_placed_by_chapter above): enrolled active
+        -- children minus those placed in a live-slot section. GREATEST guards the same way
+        -- volunteers_still_to_recruit does -- children_placed is a subset of active_child_count by
+        -- construction, so this shouldn't go negative, but an inactive-but-still-assigned child is
+        -- an edge case this doesn't rule out.
+        GREATEST(
+            0,
+            COALESCE(bm.active_child_count, 0) - COALESCE(bm.children_placed, 0)
+        ) AS children_waiting,
+        -- LEADS APPLIED VIA LINK (2026-09-12, see e2_leads_applied_via_link_by_chapter above): this
+        -- chapter's own sourcing-link applicants who've applied but haven't converted yet.
+        COALESCE(lav.leads_applied_via_link, 0) AS leads_applied_via_link,
         -- §3.4 / Row 2a: recruited but not currently placed -- its own row, not silently absorbed
         -- into the recruitment target.
         GREATEST(
@@ -394,10 +500,13 @@ final AS (
             THEN ROUND(100.0 * COALESCE(bm.fully_staffed_sections, 0) / bm.total_active_sections, 1)
         END AS class_sections_fully_staffed_pct
     FROM e2_chapters ch
+    CROSS JOIN engine_constants ec
     LEFT JOIN e2_bubble_metrics_by_chapter bm
         ON ch.chapter_id = bm.chapter_id
     LEFT JOIN e2_chapter_status cs
         ON ch.chapter_id = cs.chapter_id
+    LEFT JOIN e2_leads_applied_via_link_by_chapter lav
+        ON ch.chapter_id = lav.chapter_id
 )
 
 SELECT * FROM final

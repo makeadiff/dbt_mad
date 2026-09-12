@@ -96,6 +96,31 @@
 -- TARGET, not a state a volunteer occupies, so it deliberately sits outside
 -- assert_sric_funnel_coverage_monotonic's state-nesting invariants -- do not add stage_order = 0
 -- to that test.
+--
+-- THIRD BLOCK, LEAD FUNNEL (2026-09-12): funnel_block = 'intake_to_class'. Unlike intake
+-- (exclusive states of one field) and coverage (independent overlapping states, §6.10), this block
+-- genuinely IS a nested funnel -- each stage's condition is a strict AND-superset of the one
+-- before it (Applied ⊇ Recruited ⊇ Placed at a School ⊇ Placed in a Class), so
+-- stage_relationship = 'nested' and conversion_pct is meaningful (and computed) at every stage,
+-- not just one pair. National only (chapter_id NULL on every row -- this is a single funnel across
+-- the whole 26-27 cohort, not chapter-faceted) -- do not add a chapter dimension to this block
+-- without first deciding whether "Applied" should be chapter-attributed (most applicants aren't,
+-- per fct_volunteer_pipeline's lead_attribution gap). Scoped to the 26-27 cohort by construction:
+-- every boolean it reads (is_applied/is_completed/is_recruited_new/is_allocated_to_school/
+-- is_allocated_to_class) already derives only from this year's intake_applicants in
+-- fct_volunteer_pipeline, so a volunteer with no 26-27 application contributes nothing here.
+-- Stage 1 "Applied" = any non-draft status (is_applied OR is_completed) -- submitted something,
+-- regardless of whether it's still pending or finished. assert_sric_funnel_intake_to_class_monotonic
+-- checks the nesting invariant; a violation there is a real defect (unlike coverage's monotonicity
+-- test, which exists to police a state-nesting ASSUMPTION, not a funnel).
+--
+-- LAG PARTITION FIX (2026-09-12): with_conversion's window now partitions by (chapter_id,
+-- funnel_block), not chapter_id alone. Previously, rows from different funnel_blocks with the same
+-- chapter_id (including NULL, which SQL's PARTITION BY treats as one group) could tie on
+-- stage_order and land adjacent in the same lag window in an undefined order -- harmless before
+-- now (conversion_pct only ever read intake's stage 4), but load-bearing now that intake_to_class
+-- needs a correct sequential lag at every stage. This only changes which row lag() looks at within
+-- a tie; it does not change any existing conversion_pct value.
 
 with base as (
     select
@@ -150,6 +175,13 @@ coverage_stage_dim as (
     union all select 3, '3 · Onboarded'
     union all select 4, '4 · Allocated to Class'
     union all select 5, '5 · Ready to Mentor Children'
+),
+
+intake_to_class_stage_dim as (
+    select 1 as stage_order, '1 · Applied' as stage_name
+    union all select 2, '2 · Recruited'
+    union all select 3, '3 · Placed at a School'
+    union all select 4, '4 · Placed in a Class'
 ),
 
 -- is_new_this_year is the stable join key; volunteer_source is the display label only (Dalgo
@@ -229,26 +261,53 @@ needed_row as (
         on cc.chapter_id = cr.chapter_id
 ),
 
+-- Lead funnel (see header, 2026-09-12): national only, chapter_id NULL, 26-27 cohort. This
+-- genuinely nests (each stage is a strict AND-superset of the one before), unlike intake/coverage.
+intake_to_class_counts as (
+    select
+        'intake_to_class' as funnel_block,
+        d.stage_order,
+        d.stage_name,
+        cast(null as text) as chapter_id,
+        cast(null as text) as volunteer_source,
+        count(distinct b.volunteer_id) as volunteers
+    from intake_to_class_stage_dim d
+    left join base b
+        on (
+            (d.stage_order = 1 and (b.is_applied or b.is_completed))
+            or (d.stage_order = 2 and b.is_recruited_new)
+            or (d.stage_order = 3 and b.is_recruited_new and b.is_allocated_to_school)
+            or (d.stage_order = 4 and b.is_recruited_new and b.is_allocated_to_class)
+        )
+    group by d.stage_order, d.stage_name
+),
+
 all_stages as (
     select * from intake_counts
     union all
     select * from coverage_counts
     union all
     select * from needed_row
+    union all
+    select * from intake_to_class_counts
 ),
 
 with_conversion as (
     select
         a.*,
         lag(a.volunteers) over (
-            partition by a.chapter_id order by a.stage_order
+            partition by a.chapter_id, a.funnel_block order by a.stage_order
         ) as prev_stage_volunteers
     from all_stages a
 )
 
 select
     a.funnel_block,
-    case when a.funnel_block = 'intake' then 'exclusive' else 'overlapping' end as stage_relationship,
+    case
+        when a.funnel_block = 'intake' then 'exclusive'
+        when a.funnel_block = 'intake_to_class' then 'nested'
+        else 'overlapping'
+    end as stage_relationship,
     a.stage_order,
     a.stage_name,
     a.chapter_id,
@@ -257,10 +316,16 @@ select
     cn.chapter_status,
     a.volunteer_source,
     a.volunteers,
-    -- Only Completed -> Recruited (intake stage_order 4) is a genuine progression -- see header.
+    -- Completed -> Recruited (intake stage_order 4) is intake's one genuine progression -- see
+    -- header. intake_to_class nests at every stage, so its conversion_pct is computed throughout
+    -- (stage 1 is naturally NULL -- there's no stage before it to convert from).
     case
         when a.funnel_block = 'intake'
              and a.stage_order = 4
+             and a.prev_stage_volunteers is not null
+             and a.prev_stage_volunteers > 0
+        then round(100.0 * a.volunteers / a.prev_stage_volunteers, 1)
+        when a.funnel_block = 'intake_to_class'
              and a.prev_stage_volunteers is not null
              and a.prev_stage_volunteers > 0
         then round(100.0 * a.volunteers / a.prev_stage_volunteers, 1)
