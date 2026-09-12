@@ -88,6 +88,15 @@
 -- alphabetically, not by a hidden order column (confirmed 2026-08-27) -- stage_order is kept as
 -- its own column for models/tests, but the chart needs the order encoded in the label itself.
 --
+-- COVERAGE STAGE_NAME VOCABULARY, FINALIZED 2026-09-12 (prod_sric_funnel_display): stage_name
+-- values for the coverage block are now the final Dalgo-facing text -- "1 · Placed at a school",
+-- "2 · Signed child safety policies", "3 · Attended induction", "4 · Placed in a class",
+-- "5 · Ready to mentor" -- replacing the earlier build-order names (Allocated to School/Compliant/
+-- Onboarded/Allocated to Class/Ready to Mentor Children) used in comments elsewhere in this file.
+-- Those comments describe the underlying fct_volunteer_pipeline booleans (is_compliant,
+-- is_allocated_to_class, etc.) and are left as-is; stage_order -- not stage_name text -- is what
+-- every model/test here keys off, per §6.1b (see assert_sric_funnel_coverage_monotonic).
+--
 -- NEEDED REFERENCE ROW (2026-09-11, coverage block only): stage_order 0, stage_name "0 · Needed",
 -- volunteers = that chapter's volunteers_required from prod_sric_dashboard_data, volunteer_source
 -- NULL (a requirement isn't split new-vs-continuing -- there's one target, not two populations).
@@ -170,18 +179,18 @@ intake_stage_dim as (
 ),
 
 coverage_stage_dim as (
-    select 1 as stage_order, '1 · Allocated to School' as stage_name
-    union all select 2, '2 · Compliant'
-    union all select 3, '3 · Onboarded'
-    union all select 4, '4 · Allocated to Class'
-    union all select 5, '5 · Ready to Mentor Children'
+    select 1 as stage_order, '1 · Placed at a school' as stage_name
+    union all select 2, '2 · Signed child safety policies'
+    union all select 3, '3 · Attended induction'
+    union all select 4, '4 · Placed in a class'
+    union all select 5, '5 · Ready to mentor'
 ),
 
 intake_to_class_stage_dim as (
     select 1 as stage_order, '1 · Applied' as stage_name
     union all select 2, '2 · Recruited'
-    union all select 3, '3 · Placed at a School'
-    union all select 4, '4 · Placed in a Class'
+    union all select 3, '3 · Placed at a school'
+    union all select 4, '4 · Placed in a class'
 ),
 
 -- is_new_this_year is the stable join key; volunteer_source is the display label only (Dalgo

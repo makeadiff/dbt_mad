@@ -22,8 +22,9 @@
 --   Ready to Mentor Children <= Allocated to Class, <= Compliant, <= Onboarded
 --     (is_ready_to_mentor = is_allocated_to_class AND is_compliant AND inducted)
 -- Uses stage_order, not stage_name, to identify stages -- stage_name carries an order prefix
--- ("2 · Compliant") for Dalgo's alphabetical X-axis sort (§14), so a literal stage_name match
--- here would silently match nothing and make this test vacuously pass.
+-- ("2 · Signed child safety policies", renamed 2026-09-12 for prod_sric_funnel_display) for
+-- Dalgo's alphabetical X-axis sort (§14), so a literal stage_name match here would silently match
+-- nothing and make this test vacuously pass -- confirmed non-vacuous after the rename (see PR).
 with pivoted as (
     select
         chapter_id,
