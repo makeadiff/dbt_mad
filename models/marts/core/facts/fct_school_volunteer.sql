@@ -8,7 +8,7 @@ select
     school_volunteer_id,
     school_id,
     volunteer_id,
-    academic_year,
+    school_academic_year_id,
     created_date as assigned_date,
     modified_date,
     case

@@ -12,7 +12,6 @@ select
     scs.slot_id,
     scs.class_section_id,
     scs.class_section_subject_id,
-    scsv.academic_year,
     scsv.created_date as assigned_date,
     scsv.modified_date,
     case 

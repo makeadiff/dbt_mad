@@ -10,7 +10,7 @@ WITH partner_data AS (
     u.user_display_name AS co_name
   FROM {{ ref('dim_bubble_partner') }} p
   LEFT JOIN {{ ref('stg_bubble__user') }} u
-    ON p.partner_co_id_user = u.user_id
+    ON p.partner_co_id_user = u.user_id_number
   WHERE p.is_removed = false
 ),
 
@@ -28,34 +28,23 @@ child_data AS (
 ),
 
 -- Get latest child_class record for each child (based on created_date)
+-- child_id/school_class_id come pre-resolved from sessionops_raw (real bigint FKs) - no more
+-- UUID joins needed here now that bronze sources from sessionops_raw.
 child_class_latest AS (
   SELECT
-    cc.child_id as child_uuid,
-    c.child_id as child_integer_id,
-    cc.school_class_id as school_class_uuid,
-    sc.school_class_id as school_class_integer_id,
+    cc.child_id,
+    cc.school_class_id,
     ROW_NUMBER() OVER (PARTITION BY cc.child_id ORDER BY cc.created_date DESC) as rn
   FROM {{ ref('stg_bubble__child_class') }} cc
-  LEFT JOIN {{ ref('stg_bubble__children') }} c
-    ON cc.child_id = c._id
-  LEFT JOIN {{ ref('stg_bubble__school_class') }} sc
-    ON cc.school_class_id = sc._id
   WHERE cc.is_removed = false
 ),
 
 school_class_data AS (
   SELECT
     school_class_id,
-    class_id as class_uuid
+    class_id
   FROM {{ ref('stg_bubble__school_class') }}
   WHERE is_removed = false
-),
-
-class_data AS (
-  SELECT
-    _id as class_uuid,
-    class_name
-  FROM {{ ref('stg_bubble__class') }}
 )
 
 SELECT
@@ -73,9 +62,9 @@ FROM partner_data pd
 INNER JOIN child_data cd
   ON pd.partner_id = cd.school_id
 LEFT JOIN child_class_latest ccl
-  ON cd.child_id = ccl.child_integer_id
+  ON cd.child_id = ccl.child_id
   AND ccl.rn = 1
 LEFT JOIN school_class_data scd
-  ON ccl.school_class_integer_id = scd.school_class_id
-LEFT JOIN class_data cls
-  ON scd.class_uuid = cls.class_uuid
+  ON ccl.school_class_id = scd.school_class_id
+LEFT JOIN {{ ref('stg_bubble__class') }} cls
+  ON scd.class_id = cls.class_id

@@ -1,37 +1,22 @@
 {{ config(materialized='table') }}
 
--- Resolves UUID foreign keys for slot_class_section records + deduplicates
+-- Deduplicates slot_class_section records
 -- Flow: stg_bubble__slot_class_section → int_bubble__slot_class_section
--- Joins: slot, class_section, class_section_subject (UUID→IDs)
+-- slot_id, class_section_id, class_section_subject_id come pre-resolved from sessionops_raw
+-- (real bigint FKs) - no more UUID joins needed here now that bronze sources from
+-- sessionops_raw.
 
-with slot_map as (
-    select _id as uuid, slot_id
-    from {{ ref('stg_bubble__slot') }}
-),
-class_section_map as (
-    select _id as uuid, class_section_id
-    from {{ ref('stg_bubble__class_section') }}
-),
-class_section_subject_map as (
-    select _id as uuid, class_section_subject_id
-    from {{ ref('stg_bubble__class_section_subject') }}
-),
-
-joined as (
+with joined as (
     select
         raw.slot_class_section_id,
-        slot_map.slot_id,
-        class_section_map.class_section_id,
-        class_section_subject_map.class_section_subject_id,
-        raw.academic_year,
+        raw.slot_id,
+        raw.class_section_id,
+        raw.class_section_subject_id,
         raw.is_removed,
         raw.is_active,
         raw.created_date,
         raw.modified_date
     from {{ ref('stg_bubble__slot_class_section') }} raw
-    left join slot_map on raw.slot_id = slot_map.uuid
-    left join class_section_map on raw.class_section_id = class_section_map.uuid
-    left join class_section_subject_map on raw.class_section_subject_id = class_section_subject_map.uuid
 ),
 
 deduplicated as (
@@ -51,7 +36,6 @@ select
     slot_id,
     class_section_id,
     class_section_subject_id,
-    academic_year,
     is_removed,
     is_active,
     created_date,

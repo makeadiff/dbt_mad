@@ -20,14 +20,14 @@
 -- assignment either and stay unattributable, honestly, rather than guessed at.
 --
 -- EXPIRY (SRI_DASHBOARD_SPEC.md §6.8): this model is a workaround, not permanent architecture.
--- 95% of currently-active school_volunteer rows have both school_id AND academic_year null
+-- 95% of currently-active school_volunteer rows have both school_id AND school_academic_year_id null
 -- together -- a creation path that writes neither, not people forgetting to pick a school.
 -- That is a platform-side defect awaiting escalation to the Bubble/platform owner, not a dbt
 -- problem. Once it's fixed at the source, this model's join should stop finding anything to
 -- backfill, and the model -- along with the three consumers pointed at it -- is expected to be
 -- deleted, with consumers reverting to fct_school_volunteer directly.
 --
--- Grain: one row per (volunteer_id, academic_year), matching fct_school_volunteer -- currently
+-- Grain: one row per (volunteer_id, school_academic_year_id), matching fct_school_volunteer -- currently
 -- non-removed school_volunteer rows only (is_removed = false), since every consumer today wants
 -- the "currently recruited" population, not the full history.
 --
@@ -42,7 +42,7 @@
 -- consumers independently (int_bubble__school_volunteer_metrics counting him at both schools,
 -- fct_volunteer_pipeline and prod_sric_dashboard_data's own backfilled join doing the same) --
 -- exactly the kind of divergence this consolidation was meant to prevent, one layer down.
--- Reduced to one row per (volunteer_id, academic_year): most recent created_date, then highest
+-- Reduced to one row per (volunteer_id, school_academic_year_id): most recent created_date, then highest
 -- school_id as a stable tiebreak. Verified against the Bubble frontend, which shows volunteer
 -- 2125787 on B2 (school 549, the newer row) only -- matching this tiebreak's pick. is_multi_school
 -- flags every volunteer this reduction actually changes, so the case stays visible to consumers
@@ -52,7 +52,7 @@ with recruited as (
     select
         school_volunteer_id,
         volunteer_id,
-        academic_year,
+        school_academic_year_id,
         school_id,
         created_date
     from {{ ref('int_bubble__school_volunteer') }}
@@ -63,7 +63,7 @@ backfilled as (
     select
         r.school_volunteer_id,
         r.volunteer_id,
-        r.academic_year,
+        r.school_academic_year_id,
         coalesce(r.school_id, backfill.school_id) as school_id,
         r.created_date
     from recruited r
@@ -83,9 +83,9 @@ backfilled as (
 ),
 
 multi_school as (
-    select volunteer_id, academic_year
+    select volunteer_id, school_academic_year_id
     from backfilled
-    group by volunteer_id, academic_year
+    group by volunteer_id, school_academic_year_id
     having count(distinct school_id) > 1
 ),
 
@@ -93,23 +93,23 @@ ranked as (
     select
         b.school_volunteer_id,
         b.volunteer_id,
-        b.academic_year,
+        b.school_academic_year_id,
         b.school_id,
         (ms.volunteer_id is not null) as is_multi_school,
         row_number() over (
-            partition by b.volunteer_id, b.academic_year
+            partition by b.volunteer_id, b.school_academic_year_id
             order by b.created_date desc, b.school_id desc
         ) as rn
     from backfilled b
     left join multi_school ms
         on b.volunteer_id = ms.volunteer_id
-        and b.academic_year is not distinct from ms.academic_year
+        and b.school_academic_year_id is not distinct from ms.school_academic_year_id
 )
 
 select
     school_volunteer_id,
     volunteer_id,
-    academic_year,
+    school_academic_year_id,
     school_id,
     is_multi_school
 from ranked

@@ -1,32 +1,25 @@
 {{ config(materialized='table') }}
 
--- Resolves UUID foreign keys for class_section records + deduplicates
+-- Deduplicates class_section records
 -- Flow: stg_bubble__class_section → int_bubble__class_section
--- Joins: school_class (UUID→school_class_id), partner (UUID→school_id)
+-- school_class_id, school_id, and school_academic_year_id come pre-resolved from
+-- sessionops_raw (real bigint FKs) - no more UUID joins needed here now that bronze
+-- sources from sessionops_raw. school_academic_year_id is now a direct column on
+-- class_section itself (SESSIONOPS_SCHEMA_CHANGE_PLAN item 2), not derived from school_class.
 
-with school_class_map as (
-    select _id as uuid, school_class_id
-    from {{ ref('stg_bubble__school_class') }}
-),
-partner_map as (
-    select partner_id as uuid, partner_id1 as school_id
-    from {{ ref('stg_bubble__partner') }}
-),
-
-joined as (
+with joined as (
     select
         raw.class_section_id,
-        raw.academic_year,
         raw.section_name,
+        raw.section_display_name,
         raw.is_removed,
         raw.is_active,
-        school_class_map.school_class_id,
-        partner_map.school_id,
+        raw.school_class_id,
+        raw.school_id,
+        raw.school_academic_year_id,
         raw.created_date,
         raw.modified_date
     from {{ ref('stg_bubble__class_section') }} raw
-    left join school_class_map on raw.school_class_id = school_class_map.uuid
-    left join partner_map on raw.school_id = partner_map.uuid
 ),
 
 deduplicated as (
@@ -43,12 +36,13 @@ select
     {{ dbt_utils.generate_surrogate_key(['school_class_id']) }} as school_class_sk,
     {{ dbt_utils.generate_surrogate_key(['school_id']) }} as school_sk,
     class_section_id,
-    academic_year,
     section_name,
+    section_display_name,
     is_removed,
     is_active,
     school_class_id,
     school_id,
+    school_academic_year_id,
     created_date,
     modified_date
 from deduplicated

@@ -1,20 +1,21 @@
 {{ config(materialized='table') }}
 
 with source as (
-    select * from {{ source('bubble_raw', 'school_session_detail') }}
+    select * from {{ source('sessionops_raw', 'school_session_details') }}
 )
 select
-    "_id",
-    "session_id"::integer as session_id,
-    "school_id" as school_id,
-    "school_academic_year" as school_academic_year_id,
+    "session_id"::bigint as session_id,
+    "school_id"::bigint as school_id,
+    "school_academic_year_id"::bigint as school_academic_year_id,
     "start_date"::date as start_date,
     "end_date"::date as end_date,
     "removed"::boolean as is_removed,
     "is_active"::boolean as is_active,
-    "Created_By" as created_by,
-    "Created_Date"::date as created_date,
-    "Modified_Date"::date as modified_date,
+    "created_by_id"::bigint as created_by_id,
+    "updated_by_id"::bigint as updated_by_id,
+    "deleted_at"::timestamp as deleted_at,
+    "created_at"::date as created_date,
+    "updated_at"::date as modified_date,
     "_airbyte_raw_id",
     "_airbyte_extracted_at"::timestamp as _airbyte_extracted_at,
     "_airbyte_meta",

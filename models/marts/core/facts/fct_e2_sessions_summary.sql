@@ -19,87 +19,40 @@
 -- 2026-2027), so per-year active/inactive can't honestly be read as "dropped out." This instead
 -- reports whether the chapter's single latest known academic-year record is active, repeated across
 -- every row for that chapter regardless of which year the row itself is for.
--- total_planned_sessions is NOT derived from volunteer allocation (i.e. not "planned once a volunteer
--- got assigned into a slot") -- it's total_sections (from fct_e2_school_coverage) x 2 ideal weekly
--- slots x the number of weeks in this chapter+AY's planned window (from
--- dim_school_academic_year_window, which resolves start/end dates from school_session_detail or,
--- almost always in practice, a matching MOU). Weeks-in-window is floor((end - start) / 7) -- a
--- partial trailing week (e.g. 37 weeks + 1 leftover day) is dropped, not rounded up to a full week.
--- This is a deliberate scope split: only this dashboard's total_planned_sessions changes --
--- fct_e2_volunteer_consistency / fct_e2_child_consistency keep the original per-allocation
--- planned_sessions logic untouched, since they need a per-volunteer number that this chapter-level
--- target can't provide.
--- total_planned_sessions is broken down into four mutually-exclusive buckets, plus a 5th residual:
---   classes_conducted -- total_sessions_happened (below), a class actually ran (original volunteer
---     or a substitute).
---   total_cancellations -- already existed; sessions cancelled by a school_holiday (fct_e2_cancellations).
---   classes_with_volunteer_absenteeism (2026-09-11) -- a DOTS attendance record exists with
---     attendance='FALSE' and no substitute_volunteer_id logged: the volunteer was marked absent and
---     nobody covered. Confirmed this is genuinely rare today (10 of 584 attendance rows warehouse-wide).
---     This also fixes a latent bug: `is_substitute` (on fct_e2_volunteer_attendance_by_slot_date)
---     evaluates to NULL, not false, for exactly these rows (`attendance='FALSE' AND <null-substitute>`
---     is NULL under three-valued logic, not false) -- so they were silently counted in the old
---     sessions_happened (which had no is_substitute filter at all) while landing in neither
---     original_sessions nor substitute_sessions. sessions_happened now excludes them explicitly.
---   classes_without_assigned_volunteer (2026-09-11) -- sections with no volunteer ever assigned at
---     all (fct_e2_school_coverage.sections_without_assigned_volunteer x 2 x weeks_in_window) -- these
---     sections don't appear in fct_e2_volunteer_allocation_history at all, so they contribute 0 to
---     every other bucket by construction.
---   classes_unexplained_other -- total_planned_sessions minus the four buckets above. Not forced to
---     zero: the four buckets are built from two different section populations (allocation-history-based
---     for conducted/cancelled/absenteeism vs. the full class_section count from fct_e2_school_coverage
---     for total_planned_sessions/without_assigned_volunteer), so a real, visible gap can remain --
---     surfaced here rather than silently absorbed into one of the other four.
+--
+-- 2026-09-12 rework: total_planned_sessions is broken down using a historically-anchored, per-date
+-- classification instead of "today's snapshot x whole window" (which silently rewrote past weeks
+-- every time a volunteer got (re)assigned -- see fct_e2_planned_session_status for the full
+-- rationale). Two populations feed the breakdown, and total_planned_sessions is DEFINED as their sum
+-- (not computed independently as total_sections x 2 x weeks) -- there is no separate "unexplained"
+-- residual by construction:
+--   - Slotted sections (have >= 1 real scheduled slot_class_section row) -- authoritative source is
+--     fct_e2_planned_session_status, one row per (real slot_class_section_id, planned_date), already
+--     classified into Conducted / Cancelled / Volunteer Absent / No Volunteer Assigned / Not Yet Due
+--     with a 7-day grace period and full multi-gap staffing history. This deliberately does NOT
+--     assume "2 ideal slots" per class_section -- confirmed 2026-09-12 that 425 of 442 slotted
+--     sections have only 1 real slot_class_section row (only 17 have 2), so a flat x2 systematically
+--     overstated the target and left a large, misleading residual. A section with 2 real slots
+--     already gets 2x the rows here naturally (each real slot walks its own weekly date series), no
+--     special-casing needed.
+--   - Non-slotted sections (fct_e2_school_coverage.sections_without_volunteer -- despite its name,
+--     this is "no slot scheduled at all", confirmed identical to class_sections_with_slot's own
+--     population) -- no real schedule exists to project per-date status from at all, so these keep
+--     the "2 ideal slots" assumption as an aspirational target, split only by elapsed vs. remaining
+--     weeks (today's date within the window), not per-date precision. Their whole elapsed-week
+--     contribution counts as "No Volunteer Assigned" (there was never anyone to run a class there,
+--     holiday or not), and their remaining-week contribution counts as "Not Yet Due".
+-- classes_due_till_date = total_planned_sessions - classes_not_yet_due: what should have happened by
+-- today, independent of whether attendance was actually logged. pct_sessions_happened compares
+-- classes_conducted against THIS, not the full-year total_planned_sessions -- so a chapter partway
+-- through its year isn't judged against a target it hasn't had time to reach yet.
+-- total_original_sessions/total_substitute_sessions (the Conducted sub-split) are kept from the
+-- original per-allocation attendance rollup, not re-derived from fct_e2_planned_session_status's
+-- single 'Conducted' status -- they should tie closely to classes_conducted (both ultimately read the
+-- same attendance records) but aren't forced to reconcile exactly, since they're built from a
+-- slightly different population lens (allocation-history sections vs. slot-schedule sections).
 
-with section_allocation as (
-    -- Only used to map each slot_class_section_id to its chapter (partner_id), so
-    -- sessions_happened/cancellations below can be rolled up to chapter+academic_year grain.
-    select distinct on (slot_class_section_id, academic_year)
-        partner_id,
-        slot_class_section_id,
-        academic_year
-    from {{ ref('fct_e2_volunteer_allocation_history') }}
-    order by slot_class_section_id, academic_year, volunteer_id
-),
-
-planned_sessions_window as (
-    select
-        w.school_id::text as chapter_id,
-        w.academic_year,
-        case
-            when w.window_start_date is not null and w.window_end_date is not null
-            then greatest(floor((w.window_end_date - w.window_start_date) / 7.0)::int, 0)
-            else 0
-        end as weeks_in_window,
-        coalesce(sc.total_sections, 0) * 2 * case
-            when w.window_start_date is not null and w.window_end_date is not null
-            then greatest(floor((w.window_end_date - w.window_start_date) / 7.0)::int, 0)
-            else 0
-        end as total_planned_sessions,
-        coalesce(sc.sections_without_assigned_volunteer, 0) * 2 * case
-            when w.window_start_date is not null and w.window_end_date is not null
-            then greatest(floor((w.window_end_date - w.window_start_date) / 7.0)::int, 0)
-            else 0
-        end as classes_without_assigned_volunteer
-    from {{ ref('dim_school_academic_year_window') }} w
-    left join {{ ref('fct_e2_school_coverage') }} sc
-        on w.school_id::text = sc.chapter_id
-        and w.academic_year = sc.academic_year
-),
-
-sessions_happened_per_section as (
-    select
-        slot_class_section_id,
-        academic_year,
-        count(distinct date_of_slot) filter (where is_substitute is not null) as sessions_happened,
-        count(distinct date_of_slot) filter (where is_substitute = false) as original_sessions,
-        count(distinct date_of_slot) filter (where is_substitute = true) as substitute_sessions,
-        count(distinct date_of_slot) filter (where is_substitute is null) as absenteeism_sessions
-    from {{ ref('fct_e2_volunteer_attendance_by_slot_date') }}
-    group by slot_class_section_id, academic_year
-),
-
-chapter_academic_years as (
+with chapter_academic_years as (
     select
         sas.school_id::text as chapter_id,
         sas.partner_name as chapter_name,
@@ -110,72 +63,156 @@ chapter_academic_years as (
         on sas.school_id = ccs.school_id
 ),
 
-section_metrics as (
+slotted_status_agg as (
     select
-        sa.partner_id,
-        sa.slot_class_section_id,
+        school_id::text as chapter_id,
+        academic_year,
+        count(*) filter (where status = 'Conducted') as slotted_conducted,
+        count(*) filter (where status = 'Cancelled') as slotted_cancelled,
+        count(*) filter (where status = 'Volunteer Absent') as slotted_absent,
+        count(*) filter (where status = 'No Volunteer Assigned') as slotted_no_volunteer,
+        count(*) filter (where status = 'Not Yet Due') as slotted_not_yet_due
+    from {{ ref('fct_e2_planned_session_status') }}
+    group by school_id::text, academic_year
+),
+
+section_allocation as (
+    -- Only used for the original/substitute sub-split of Conducted (see header) and the
+    -- cancellation_reasons display text -- not for any of the core bucket counts anymore.
+    select distinct on (slot_class_section_id, academic_year)
+        partner_id,
+        slot_class_section_id,
+        academic_year
+    from {{ ref('fct_e2_volunteer_allocation_history') }}
+    order by slot_class_section_id, academic_year, volunteer_id
+),
+
+conducted_split_per_section as (
+    select
+        slot_class_section_id,
+        academic_year,
+        count(distinct date_of_slot) filter (where is_substitute = false) as original_sessions,
+        count(distinct date_of_slot) filter (where is_substitute = true) as substitute_sessions
+    from {{ ref('fct_e2_volunteer_attendance_by_slot_date') }}
+    group by slot_class_section_id, academic_year
+),
+
+conducted_split_agg as (
+    select
+        sa.partner_id::text as chapter_id,
         sa.academic_year,
-        coalesce(h.sessions_happened, 0) as sessions_happened,
-        coalesce(h.original_sessions, 0) as original_sessions,
-        coalesce(h.substitute_sessions, 0) as substitute_sessions,
-        coalesce(h.absenteeism_sessions, 0) as absenteeism_sessions,
-        coalesce(c.total_cancellations, 0) as total_cancellations,
-        c.cancellation_reasons
+        sum(coalesce(cs.original_sessions, 0)) as total_original_sessions,
+        sum(coalesce(cs.substitute_sessions, 0)) as total_substitute_sessions
     from section_allocation sa
-    left join sessions_happened_per_section h
-        on sa.slot_class_section_id = h.slot_class_section_id
-        and sa.academic_year = h.academic_year
+    left join conducted_split_per_section cs
+        on sa.slot_class_section_id = cs.slot_class_section_id
+        and sa.academic_year = cs.academic_year
+    group by sa.partner_id::text, sa.academic_year
+),
+
+cancellation_reasons_agg as (
+    select
+        sa.partner_id::text as chapter_id,
+        sa.academic_year,
+        string_agg(distinct c.cancellation_reasons, '; ' order by c.cancellation_reasons) as cancellation_reasons
+    from section_allocation sa
     left join {{ ref('fct_e2_cancellations') }} c
         on sa.slot_class_section_id = c.slot_class_section_id
         and sa.academic_year = c.academic_year
+    group by sa.partner_id::text, sa.academic_year
 ),
 
-section_metrics_agg as (
+window_weeks as (
     select
-        sm.partner_id::text as partner_id,
-        sm.academic_year,
-        sum(sm.sessions_happened) as total_sessions_happened,
-        sum(sm.original_sessions) as total_original_sessions,
-        sum(sm.substitute_sessions) as total_substitute_sessions,
-        sum(sm.absenteeism_sessions) as classes_with_volunteer_absenteeism,
-        sum(sm.total_cancellations) as total_cancellations,
-        string_agg(distinct sm.cancellation_reasons, '; ' order by sm.cancellation_reasons) as cancellation_reasons
-    from section_metrics sm
-    group by sm.partner_id::text, sm.academic_year
+        w.school_id::text as chapter_id,
+        w.academic_year,
+        coalesce(sc.sections_without_volunteer, 0) as unslotted_sections,
+        case
+            when w.window_start_date is not null and w.window_end_date is not null
+            then greatest(floor((least(current_date, w.window_end_date) - w.window_start_date) / 7.0)::int, 0)
+            else 0
+        end as weeks_elapsed,
+        case
+            when w.window_start_date is not null and w.window_end_date is not null
+            then greatest(floor((w.window_end_date - w.window_start_date) / 7.0)::int, 0)
+                - greatest(floor((least(current_date, w.window_end_date) - w.window_start_date) / 7.0)::int, 0)
+            else 0
+        end as weeks_remaining
+    from {{ ref('dim_school_academic_year_window') }} w
+    left join {{ ref('fct_e2_school_coverage') }} sc
+        on w.school_id::text = sc.chapter_id
+        and w.academic_year = sc.academic_year
+),
+
+bucketed as (
+    select
+        cay.chapter_id,
+        cay.chapter_name,
+        cay.chapter_status,
+        cay.academic_year,
+        coalesce(ssa.slotted_conducted, 0) as classes_conducted,
+        coalesce(csa.total_original_sessions, 0) as total_original_sessions,
+        coalesce(csa.total_substitute_sessions, 0) as total_substitute_sessions,
+        coalesce(ssa.slotted_cancelled, 0) as classes_cancelled,
+        coalesce(ssa.slotted_absent, 0) as classes_with_volunteer_absenteeism,
+        coalesce(ssa.slotted_no_volunteer, 0)
+            + coalesce(ww.unslotted_sections, 0) * 2 * coalesce(ww.weeks_elapsed, 0) as classes_without_assigned_volunteer,
+        coalesce(ssa.slotted_not_yet_due, 0)
+            + coalesce(ww.unslotted_sections, 0) * 2 * coalesce(ww.weeks_remaining, 0) as classes_not_yet_due,
+        cra.cancellation_reasons
+    from chapter_academic_years cay
+    left join window_weeks ww
+        on cay.chapter_id = ww.chapter_id
+        and cay.academic_year = ww.academic_year
+    left join slotted_status_agg ssa
+        on cay.chapter_id = ssa.chapter_id
+        and cay.academic_year = ssa.academic_year
+    left join conducted_split_agg csa
+        on cay.chapter_id = csa.chapter_id
+        and cay.academic_year = csa.academic_year
+    left join cancellation_reasons_agg cra
+        on cay.chapter_id = cra.chapter_id
+        and cay.academic_year = cra.academic_year
 )
 
 select
-    cay.chapter_id,
-    cay.chapter_name,
+    b.chapter_id,
+    b.chapter_name,
     cd.city_name,
     cd.state,
     cd.co_name,
     cd.engine,
-    cay.chapter_status,
-    cay.academic_year,
-    coalesce(psw.total_planned_sessions, 0) as total_planned_sessions,
-    coalesce(sma.total_sessions_happened, 0) as total_sessions_happened,
-    coalesce(sma.total_original_sessions, 0) as total_original_sessions,
-    coalesce(sma.total_substitute_sessions, 0) as total_substitute_sessions,
-    coalesce(sma.total_cancellations, 0) as total_cancellations,
-    coalesce(sma.classes_with_volunteer_absenteeism, 0) as classes_with_volunteer_absenteeism,
-    coalesce(psw.classes_without_assigned_volunteer, 0) as classes_without_assigned_volunteer,
-    coalesce(psw.total_planned_sessions, 0)
-        - coalesce(sma.total_sessions_happened, 0)
-        - coalesce(sma.total_cancellations, 0)
-        - coalesce(sma.classes_with_volunteer_absenteeism, 0)
-        - coalesce(psw.classes_without_assigned_volunteer, 0) as classes_unexplained_other,
-    round(coalesce(sma.total_sessions_happened, 0)::numeric / nullif(psw.total_planned_sessions, 0) * 100, 1) as pct_sessions_happened,
-    round(coalesce(sma.total_original_sessions, 0)::numeric / nullif(sma.total_sessions_happened, 0) * 100, 1) as pct_original_sessions,
-    round(coalesce(sma.total_substitute_sessions, 0)::numeric / nullif(sma.total_sessions_happened, 0) * 100, 1) as pct_substitute_sessions,
-    round(coalesce(sma.total_cancellations, 0)::numeric / nullif(psw.total_planned_sessions, 0) * 100, 1) as pct_cancellations,
-    sma.cancellation_reasons
-from chapter_academic_years cay
+    b.chapter_status,
+    b.academic_year,
+    b.classes_conducted
+        + b.classes_cancelled
+        + b.classes_with_volunteer_absenteeism
+        + b.classes_without_assigned_volunteer
+        + b.classes_not_yet_due as total_planned_sessions,
+    b.classes_conducted,
+    b.total_original_sessions,
+    b.total_substitute_sessions,
+    b.classes_cancelled,
+    b.classes_with_volunteer_absenteeism,
+    b.classes_without_assigned_volunteer,
+    b.classes_not_yet_due,
+    (b.classes_conducted + b.classes_cancelled + b.classes_with_volunteer_absenteeism + b.classes_without_assigned_volunteer)
+        as classes_due_till_date,
+    round(
+        b.classes_conducted::numeric
+        / nullif(b.classes_conducted + b.classes_cancelled + b.classes_with_volunteer_absenteeism + b.classes_without_assigned_volunteer, 0)
+        * 100,
+        1
+    ) as pct_sessions_happened,
+    round(b.total_original_sessions::numeric / nullif(b.classes_conducted, 0) * 100, 1) as pct_original_sessions,
+    round(b.total_substitute_sessions::numeric / nullif(b.classes_conducted, 0) * 100, 1) as pct_substitute_sessions,
+    round(
+        b.classes_cancelled::numeric
+        / nullif(b.classes_conducted + b.classes_cancelled + b.classes_with_volunteer_absenteeism + b.classes_without_assigned_volunteer, 0)
+        * 100,
+        1
+    ) as pct_cancellations,
+    b.cancellation_reasons
+from bucketed b
 left join {{ ref('dim_chapter_mapping') }} cd
-    on cay.chapter_id = cd.chapter_id
-left join planned_sessions_window psw
-    on cay.chapter_id = psw.chapter_id
-    and cay.academic_year = psw.academic_year
-left join section_metrics_agg sma
-    on cay.chapter_id = sma.partner_id
-    and cay.academic_year = sma.academic_year
+    on b.chapter_id = cd.chapter_id

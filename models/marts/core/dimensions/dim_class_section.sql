@@ -12,7 +12,7 @@ select
     c.class_name,
     cs.school_class_id,
     cs.school_id,
-    cs.academic_year,
+    cs.school_academic_year_id,
     cs.is_active,
     cs.is_removed,
     cs.created_date,

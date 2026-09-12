@@ -8,8 +8,7 @@ select
     slot_class_section_volunteer_id,
     slot_class_section_id,
     volunteer_id,
-    academic_year,
-    case 
+    case
         when is_removed = false then (current_date - created_date::date)
         else (modified_date::date - created_date::date)
     end as tenure_in_slot,

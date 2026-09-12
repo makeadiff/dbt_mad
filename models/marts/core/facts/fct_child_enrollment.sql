@@ -28,9 +28,13 @@
 -- cross-referencing two tables by hand.
 
 with child_class_base as (
-    select *
-    from {{ ref('int_bubble__child_class') }}
-    where is_removed = false
+    select
+        cc.*,
+        scl.school_academic_year_id
+    from {{ ref('int_bubble__child_class') }} cc
+    left join {{ ref('int_bubble__school_class') }} scl
+        on cc.school_class_id = scl.school_class_id
+    where cc.is_removed = false
 ),
 
 child_class_section_resolved as (
@@ -41,7 +45,7 @@ child_class_section_resolved as (
         ccs.child_id,
         ccs.class_section_id,
         cs.school_class_id,
-        ccs.academic_year,
+        cs.school_academic_year_id,
         ccs.created_date,
         ccs.modified_date
     from {{ ref('int_bubble__child_class_section') }} ccs
@@ -59,7 +63,7 @@ enrollment_keys as (
 select
     ek.child_id,
     ek.school_class_id,
-    coalesce(cc.academic_year, ccsr.academic_year) as academic_year,
+    coalesce(cc.school_academic_year_id, ccsr.school_academic_year_id) as school_academic_year_id,
     cc.child_class_id,
     cc.is_active as class_is_active,
     cc.created_date as class_created_date,
