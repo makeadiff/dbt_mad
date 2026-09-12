@@ -48,8 +48,12 @@ session_happened_breakdown_mix as (
     from {{ ref('fct_e2_sessions_summary') }}
 ),
 
+-- Deliberately excludes classes_not_yet_due (2026-09-12): "Not Happened" implies a session was due
+-- and didn't occur, but Not Yet Due hasn't reached its own grace-period deadline yet -- it's pending,
+-- not a failure, so mixing it in here would misread as a gap. These 3 categories don't sum to
+-- total_planned_sessions on their own (see Planned Session Breakdown below for the full partition).
 session_not_happened_breakdown_mix as (
-    select chapter_id, academic_year, 'Session Not Happened Breakdown' as metric_group, 'Cancelled' as category, total_cancellations as count
+    select chapter_id, academic_year, 'Session Not Happened Breakdown' as metric_group, 'Cancelled' as category, classes_cancelled as count
     from {{ ref('fct_e2_sessions_summary') }}
     union all
     select chapter_id, academic_year, 'Session Not Happened Breakdown', 'Volunteer Absent', classes_with_volunteer_absenteeism
@@ -57,32 +61,38 @@ session_not_happened_breakdown_mix as (
     union all
     select chapter_id, academic_year, 'Session Not Happened Breakdown', 'No Volunteer Assigned', classes_without_assigned_volunteer
     from {{ ref('fct_e2_sessions_summary') }}
-    union all
-    select chapter_id, academic_year, 'Session Not Happened Breakdown', 'Other/Unexplained', classes_unexplained_other
-    from {{ ref('fct_e2_sessions_summary') }}
 ),
 
--- Planned and Happened are not a partition (Happened is a subset of Planned, not its complement) --
--- unlike every other metric_group here, these two don't sum to a clean whole. Meant for a grouped
--- bar comparing Planned vs. Happened per chapter, not a pie or stacked bar.
+-- Planned / Planned Till Date / Happened are not a partition (each is a superset of the next, not a
+-- complement) -- unlike every other metric_group here, these don't sum to a clean whole. Meant for a
+-- grouped bar comparing all three per chapter, not a pie or stacked bar.
+--   Planned -- total_planned_sessions, the full annual target.
+--   Planned Till Date -- classes_due_till_date, what should have happened by today (excludes
+--     classes_not_yet_due -- sessions whose own 7-day grace period hasn't expired yet, so they
+--     haven't been judged one way or the other).
+--   Happened -- classes_conducted, what actually happened.
 session_delivery_mix as (
     select chapter_id, academic_year, 'Session Delivery' as metric_group, 'Planned' as category, total_planned_sessions as count
     from {{ ref('fct_e2_sessions_summary') }}
     union all
-    select chapter_id, academic_year, 'Session Delivery', 'Happened', total_sessions_happened
+    select chapter_id, academic_year, 'Session Delivery', 'Planned Till Date', classes_due_till_date
+    from {{ ref('fct_e2_sessions_summary') }}
+    union all
+    select chapter_id, academic_year, 'Session Delivery', 'Happened', classes_conducted
     from {{ ref('fct_e2_sessions_summary') }}
 ),
 
 -- Unlike session_happened_breakdown_mix (splits only the Happened subset into Original/Substitute)
 -- and session_not_happened_breakdown_mix (splits only the non-Happened remainder), this is the full
 -- partition of total_planned_sessions into all 5 buckets -- these 5 categories always sum to exactly
--- total_planned_sessions for a given chapter+academic_year, so this is the one to use for a single
+-- total_planned_sessions for a given chapter+academic_year (total_planned_sessions is DEFINED as
+-- their sum as of 2026-09-12, not computed independently), so this is the one to use for a single
 -- donut/100%-stacked-bar showing the complete "out of planned classes" picture.
 planned_session_breakdown_mix as (
-    select chapter_id, academic_year, 'Planned Session Breakdown' as metric_group, 'Conducted' as category, total_sessions_happened as count
+    select chapter_id, academic_year, 'Planned Session Breakdown' as metric_group, 'Conducted' as category, classes_conducted as count
     from {{ ref('fct_e2_sessions_summary') }}
     union all
-    select chapter_id, academic_year, 'Planned Session Breakdown', 'Cancelled', total_cancellations
+    select chapter_id, academic_year, 'Planned Session Breakdown', 'Cancelled', classes_cancelled
     from {{ ref('fct_e2_sessions_summary') }}
     union all
     select chapter_id, academic_year, 'Planned Session Breakdown', 'Volunteer Absent', classes_with_volunteer_absenteeism
@@ -91,7 +101,7 @@ planned_session_breakdown_mix as (
     select chapter_id, academic_year, 'Planned Session Breakdown', 'No Volunteer Assigned', classes_without_assigned_volunteer
     from {{ ref('fct_e2_sessions_summary') }}
     union all
-    select chapter_id, academic_year, 'Planned Session Breakdown', 'Other/Unexplained', classes_unexplained_other
+    select chapter_id, academic_year, 'Planned Session Breakdown', 'Not Yet Due', classes_not_yet_due
     from {{ ref('fct_e2_sessions_summary') }}
 ),
 

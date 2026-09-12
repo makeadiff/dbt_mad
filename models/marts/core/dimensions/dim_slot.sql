@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 -- dim_slot: One row per recurring time slot
--- Source: int_bubble__slot (resolves school_id via UUID join)
+-- Source: int_bubble__slot (school_id/school_academic_year_id already resolved bigint FKs)
 
 select
     slot_sk,
@@ -12,12 +12,12 @@ select
     end_time,
     case
         when start_time is not null and end_time is not null
-        then extract(epoch from (end_time::timestamp - start_time::timestamp)) / 60
+        then extract(epoch from (end_time - start_time)) / 60
         else null
     end as duration_minutes,
     is_recurring,
-    academic_year,
     school_id,
+    school_academic_year_id,
     is_removed,
     created_date,
     modified_date

@@ -6,7 +6,7 @@
 SELECT
     -- School volunteer base columns
     sv.school_volunteer_id,
-    sv.academic_year,
+    sv.school_academic_year_id,
     sv.school_id,
     sv.volunteer_id,
     sv.is_removed AS removed,

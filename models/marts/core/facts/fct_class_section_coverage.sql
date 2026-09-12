@@ -22,7 +22,7 @@ with volunteers_per_section as (
 select
     cs.class_section_id,
     cs.school_id,
-    cs.academic_year,
+    cs.school_academic_year_id,
     coalesce(vps.volunteers_on_class, 0) as volunteers_on_class
 from {{ ref('dim_class_section') }} cs
 left join volunteers_per_section vps

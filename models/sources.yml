@@ -30,6 +30,33 @@ sources:
       - name: subject
       - name: user
 
+  - name: sessionops_raw
+    tables:
+      - name: academic_year
+      - name: batch_child
+      - name: child
+      - name: child_class
+      - name: child_class_section
+      - name: child_program
+      - name: child_removal_log
+      - name: child_subject
+      - name: class
+      - name: class_section
+      - name: class_section_subject
+      - name: partner
+      - name: partner_worknode
+      - name: program
+      - name: school_academic_year
+      - name: school_class
+      - name: school_holiday
+      - name: school_session_details
+      - name: school_volunteer
+      - name: slot
+      - name: slot_class_section
+      - name: slot_class_section_volunteer
+      - name: subject
+      - name: users
+
   - name: dots_raw
     tables:
       - name: childAttendance

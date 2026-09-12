@@ -29,14 +29,14 @@ with_submission_date as (
 with_slot_dow as (
     select
         *,
-        case trim(day_of_week)
-            when 'Sunday' then 0
-            when 'Monday' then 1
-            when 'Tuesday' then 2
-            when 'Wednesday' then 3
-            when 'Thursday' then 4
-            when 'Friday' then 5
-            when 'Saturday' then 6
+        case upper(trim(day_of_week))
+            when 'SUNDAY' then 0
+            when 'MONDAY' then 1
+            when 'TUESDAY' then 2
+            when 'WEDNESDAY' then 3
+            when 'THURSDAY' then 4
+            when 'FRIDAY' then 5
+            when 'SATURDAY' then 6
             else null
         end as slot_dow
     from with_submission_date

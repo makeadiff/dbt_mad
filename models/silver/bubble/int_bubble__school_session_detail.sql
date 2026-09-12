@@ -1,33 +1,23 @@
 {{ config(materialized='table') }}
 
--- Resolves UUID foreign keys for school_session_detail records + deduplicates
+-- Deduplicates school_session_detail records
 -- Flow: stg_bubble__school_session_detail → int_bubble__school_session_detail
--- Joins: partner (UUID→school_id), school_academic_year (UUID→school_academic_year_id)
+-- school_id and school_academic_year_id come pre-resolved from sessionops_raw (real bigint
+-- FKs) - no more UUID joins needed here now that bronze sources from sessionops_raw.
 
-with partner_map as (
-    select partner_id as uuid, partner_id1 as school_id
-    from {{ ref('stg_bubble__partner') }}
-),
-school_academic_year_map as (
-    select school_academic_year_uuid as uuid, school_academic_year_id
-    from {{ ref('int_bubble__school_academic_year') }}
-),
-
-joined as (
+with joined as (
     select
         raw.session_id,
-        partner_map.school_id,
-        school_academic_year_map.school_academic_year_id,
+        raw.school_id,
+        raw.school_academic_year_id,
         raw.start_date::date as start_date,
         raw.end_date::date as end_date,
         raw.is_active,
         raw.is_removed,
-        raw.created_by,
+        raw.created_by_id as created_by,
         raw.created_date,
         raw.modified_date
     from {{ ref('stg_bubble__school_session_detail') }} raw
-    left join partner_map on raw.school_id = partner_map.uuid
-    left join school_academic_year_map on raw.school_academic_year_id = school_academic_year_map.uuid
 ),
 
 deduplicated as (

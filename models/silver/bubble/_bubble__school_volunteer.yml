@@ -16,8 +16,8 @@ models:
 
   - name: int_bubble__school_volunteer_backfilled
     description: >
-      One row per (volunteer_id, academic_year) -- currently non-removed school_volunteer rows,
-      null school_id backfilled via live class assignment. Enforced by dedup (2026-08-28): most
+      One row per (volunteer_id, school_academic_year_id) -- currently non-removed school_volunteer
+      rows, null school_id backfilled via live class assignment. Enforced by dedup (2026-08-28): most
       recent created_date, then highest school_id as a stable tiebreak, since school_volunteer
       carries no field marking an old assignment superseded. is_multi_school flags every
       volunteer this reduction actually changes.
@@ -26,7 +26,7 @@ models:
           arguments:
             combination_of_columns:
               - volunteer_id
-              - academic_year
+              - school_academic_year_id
     columns:
       - name: volunteer_id
         tests:

@@ -1,56 +1,42 @@
 {{ config(materialized='table') }}
 
--- Resolves UUID foreign keys for child_class records + deduplicates
+-- Deduplicates child_class records
 -- Flow: stg_bubble__child_class → int_bubble__child_class
--- Joins: child (UUID→child_id), school_class (UUID→school_class_id)
+-- child_id and school_class_id come pre-resolved from sessionops_raw (real bigint FKs) - no
+-- more UUID joins needed here now that bronze sources from sessionops_raw.
 -- This is the more fundamental child enrollment link: a child must be assigned to a school_class
 -- (mandatory at enrollment/edit time) even before, or without ever, being assigned a specific
 -- class_section -- so this reaches children that int_bubble__child_class_section misses.
--- Deduplicates on Bubble's raw "_id", not "child_class_id" -- same bug class as school_holiday_id and
--- child_class_section_id: child_class_id is not a reliable global unique key (found 46 groups, 94 raw
--- rows, where the same child_class_id is shared by genuinely different children's enrollment records).
--- Partitioning on it silently dropped one child's real enrollment as a "duplicate" of another's.
+-- Dedupes on child_class_id, sessionops's real BigAutoField DB primary key - unlike Bubble's
+-- business-key child_class_id (which had genuine collisions across different children's
+-- enrollment records, see git history), this is guaranteed unique per row.
 
-with child_map as (
-    select _id as uuid, child_id
-    from {{ ref('stg_bubble__children') }}
-),
-school_class_map as (
-    select _id as uuid, school_class_id
-    from {{ ref('stg_bubble__school_class') }}
-),
-
-joined as (
+with joined as (
     select
-        raw."_id" as child_class_uid,
         raw.child_class_id,
-        raw.academic_year,
-        child_map.child_id,
-        school_class_map.school_class_id,
+        raw.child_id,
+        raw.school_class_id,
         raw.is_active,
         raw.is_removed,
         raw.created_date,
         raw.modified_date
     from {{ ref('stg_bubble__child_class') }} raw
-    left join child_map on raw.child_id = child_map.uuid
-    left join school_class_map on raw.school_class_id = school_class_map.uuid
 ),
 
 deduplicated as (
     {{ dbt_utils.deduplicate(
         relation='joined',
-        partition_by='child_class_uid',
+        partition_by='child_class_id',
         order_by='modified_date desc',
        )
     }}
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['child_class_uid']) }} as child_class_sk,
+    {{ dbt_utils.generate_surrogate_key(['child_class_id']) }} as child_class_sk,
     {{ dbt_utils.generate_surrogate_key(['child_id']) }} as child_sk,
     {{ dbt_utils.generate_surrogate_key(['school_class_id']) }} as school_class_sk,
     child_class_id,
-    academic_year,
     child_id,
     school_class_id,
     is_active,
