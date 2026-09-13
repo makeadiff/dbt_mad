@@ -123,6 +123,16 @@
 -- checks the nesting invariant; a violation there is a real defect (unlike coverage's monotonicity
 -- test, which exists to police a state-nesting ASSUMPTION, not a funnel).
 --
+-- FOURTH BLOCK, LEADS (2026-09-13): funnel_block = 'leads'. Replaces Dalgo's direct read of
+-- fct_volunteer_pipeline for two national lead-attribution tiles -- the only reason Dalgo depended
+-- on prod_gold_marts at all (dashboards are meant to read prod_gold_analytics exclusively).
+-- National only (chapter_id NULL), 26-27 cohort (same intake scoping as above), stage_relationship
+-- = 'exclusive' -- a volunteer is applied-and-not-yet-recruited via exactly one attribution path:
+--   'Applied through a chapter''s link'  -- is_applied, not is_recruited_new, lead_attribution = 'chapter'
+--   'Applied directly'                   -- is_applied, not is_recruited_new, lead_attribution <> 'chapter'
+-- conversion_pct is not computed for this block (no prior stage to convert from -- these are two
+-- parallel categories, not a sequence).
+--
 -- LAG PARTITION FIX (2026-09-12): with_conversion's window now partitions by (chapter_id,
 -- funnel_block), not chapter_id alone. Previously, rows from different funnel_blocks with the same
 -- chapter_id (including NULL, which SQL's PARTITION BY treats as one group) could tie on
@@ -143,7 +153,8 @@ with base as (
         is_allocated_to_class,
         is_compliant,
         is_onboarded,
-        is_ready_to_mentor
+        is_ready_to_mentor,
+        lead_attribution
     from {{ ref('fct_volunteer_pipeline') }}
 ),
 
@@ -191,6 +202,11 @@ intake_to_class_stage_dim as (
     union all select 2, '2 · Recruited'
     union all select 3, '3 · Placed at a school'
     union all select 4, '4 · Placed in a class'
+),
+
+leads_stage_dim as (
+    select 1 as stage_order, 'Applied through a chapter''s link' as stage_name
+    union all select 2, 'Applied directly'
 ),
 
 -- is_new_this_year is the stable join key; volunteer_source is the display label only (Dalgo
@@ -291,6 +307,29 @@ intake_to_class_counts as (
     group by d.stage_order, d.stage_name
 ),
 
+-- National lead tiles (2026-09-13): replaces Dalgo's direct read of fct_volunteer_pipeline for
+-- the two national lead-attribution tiles -- national only (chapter_id NULL), 26-27 cohort
+-- (inherits the scoping already on is_applied/lead_attribution in fct_volunteer_pipeline).
+-- stage_relationship = 'exclusive': a volunteer is applied-not-recruited via exactly one
+-- attribution path (chapter-link vs. everything else), same status-distribution shape as intake.
+leads_counts as (
+    select
+        'leads' as funnel_block,
+        d.stage_order,
+        d.stage_name,
+        cast(null as text) as chapter_id,
+        cast(null as text) as volunteer_source,
+        count(distinct b.volunteer_id) as volunteers
+    from leads_stage_dim d
+    left join base b
+        on b.is_applied and not b.is_recruited_new
+        and (
+            (d.stage_order = 1 and b.lead_attribution = 'chapter')
+            or (d.stage_order = 2 and b.lead_attribution <> 'chapter')
+        )
+    group by d.stage_order, d.stage_name
+),
+
 all_stages as (
     select * from intake_counts
     union all
@@ -299,6 +338,8 @@ all_stages as (
     select * from needed_row
     union all
     select * from intake_to_class_counts
+    union all
+    select * from leads_counts
 ),
 
 with_conversion as (
@@ -313,7 +354,7 @@ with_conversion as (
 select
     a.funnel_block,
     case
-        when a.funnel_block = 'intake' then 'exclusive'
+        when a.funnel_block in ('intake', 'leads') then 'exclusive'
         when a.funnel_block = 'intake_to_class' then 'nested'
         else 'overlapping'
     end as stage_relationship,
