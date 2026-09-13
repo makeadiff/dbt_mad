@@ -3,15 +3,14 @@
 -- dim_date: day-grain calendar spine, 2023-01-01 through one year past today.
 -- Grain: one row per calendar date.
 --
--- Sibling to dim_date_week (ISO-week grain, built for SRI_DASHBOARD_SPEC.md §8 Row 4's weekly
--- trend). This one exists because the recruitment campaign board reports day by day: a chapter
--- that recruited nobody on a Wednesday must render a 0, not a missing column. Only a spine can
+-- This exists because the recruitment campaign board reports day by day: a chapter that
+-- recruited nobody on a Wednesday must render a 0, not a missing column. Only a spine can
 -- produce a row for a day that has no underlying records, and a pivot table with ragged columns
 -- is unreadable as a leaderboard.
 --
--- Deliberately not merged with dim_date_week -- that model's grain is a public contract with
--- consumers that expect one row per week, and widening it to daily would silently multiply
--- every downstream count by seven.
+-- (2026-09-13: a week-grain sibling, dim_date_week, was built for SRI_DASHBOARD_SPEC.md §8
+-- Row 4's weekly trend but never got a consumer -- removed. If that weekly trend gets built,
+-- rebuild it as its own model rather than widening this one's grain to weekly.)
 
 with spine as (
     {{ dbt_utils.date_spine(

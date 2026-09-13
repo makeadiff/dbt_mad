@@ -23,6 +23,13 @@ clean-targets:         # directories to be removed by `dbt clean`
   - "target"
   - "dbt_packages"
 
+# Live campaign window for prod_chapter_campaign_daily. Set here, not on the command line --
+# the nightly 01:36 scheduled job only reads vars from this file. campaign_goal is null: this
+# campaign has no per-chapter goal, so don't invent one.
+vars:
+  campaign_start: "2026-09-10"
+  campaign_end: "2026-09-21"
+  campaign_goal: null
 
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models

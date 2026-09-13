@@ -4,9 +4,12 @@
 -- chapter per campaign day, so the whole thing renders as a Dalgo Pivot Table with chapters down
 -- the side, dates across the top, and recruited counts in the cells.
 --
--- Window and goal are dbt vars so ops can re-run a different campaign without a code change:
---   dbt run -s prod_chapter_campaign_daily \
---     --vars '{campaign_start: "2026-09-01", campaign_end: "2026-09-05", campaign_goal: 10}'
+-- Window and goal are dbt vars, set in dbt_project.yml (not the command line -- the nightly
+-- 01:36 job only reads vars from there) so ops can re-run a different campaign without a code
+-- change:
+--   campaign_start: "2026-09-10"
+--   campaign_end:   "2026-09-21"
+--   campaign_goal:  null
 --
 -- HOW A VOLUNTEER LANDS IN A CELL (signed with Akshay 2026-08-28). The cell is the volunteer's
 -- HIRE date. The chapter is their Bubble school mapping. The mapping's own date is deliberately
@@ -20,11 +23,20 @@
 -- is carried on every row for exactly this purpose: while it is large, the ranking below it is
 -- not yet final, and announcing a winner off this table would be announcing a guess.
 --
--- Two rankings, both requested, both computed over the same window:
---   rank_first_to_goal -- primary. Who reached the goal first, ordered by the hire timestamp of
---                         the chapter's Nth qualifying volunteer. Null where the goal wasn't met.
---   rank_by_volume     -- secondary. Who recruited the most across the whole window.
--- They are genuinely different questions and can crown different chapters; ship both.
+-- CAMPAIGN_GOAL IS OPTIONAL (2026-09-13): the running 2026-09-10 to 2026-09-21 campaign has no
+-- per-chapter goal, so campaign_goal is null and this board is a daily leaderboard by cumulative
+-- recruits, not a race to a target. When campaign_goal is null, reached_goal, goal_reached_at and
+-- rank_first_to_goal are all null (there is no goal to reach or rank against) -- do not invent a
+-- placeholder number to make them non-null. rank_by_volume and running_total are the ranking that
+-- matters here. If a future campaign sets a real campaign_goal var, rank_first_to_goal/
+-- reached_goal/goal_reached_at populate again automatically, but the default sort below stays on
+-- window_total (see ORDER BY note) regardless.
+--
+-- Two rankings, computed over the same window:
+--   rank_first_to_goal -- who reached the goal first, ordered by the hire timestamp of the
+--                         chapter's Nth qualifying volunteer. Null where there's no goal, or the
+--                         goal wasn't met.
+--   rank_by_volume     -- primary today. Who recruited the most across the whole window.
 --
 -- Chapter roster comes from prod_sric_dashboard_data rather than being rebuilt from dims. That is
 -- a deliberate gold-on-gold reference: it makes the campaign board and the SRI dashboard agree by
@@ -32,14 +44,12 @@
 -- §6.9 filter (is_currently_active AND converted), which is precisely the duplication that
 -- produced defect D2.
 
--- DEFAULT WINDOW: 6-10 July 2026, not the current week. Chosen 2026-08-28 because attribution
--- has had seven weeks to land on it, so the board renders with real numbers (19 recruited across
--- 8 chapters; Chennai's Singaram Pillay Girls crosses the goal on Thu 9 July) instead of the 340
--- zero cells the current week produces. This is a demonstration window for reviewing the layout,
--- NOT the live campaign -- when the real campaign runs, pass its dates in as vars.
+-- Fallback defaults below (6-10 July 2026, no goal) are a demonstration window for ad-hoc runs
+-- outside the nightly job -- the live campaign's actual dates and goal come from the
+-- dbt_project.yml vars above, which the nightly 01:36 job always reads.
 {% set campaign_start = var('campaign_start', '2026-07-06') %}
 {% set campaign_end   = var('campaign_end',   '2026-07-10') %}
-{% set campaign_goal  = var('campaign_goal',  10) %}
+{% set campaign_goal  = var('campaign_goal',  none) %}
 
 with chapters as (
     select
@@ -92,6 +102,8 @@ daily as (
 
 -- The moment a chapter's Nth volunteer was hired. Ordering by hire_datetime (not date) means the
 -- race is settled to the second, so same-day finishes rank rather than tie.
+-- When campaign_goal is null (no goal this campaign), this CTE deliberately returns no rows --
+-- there is no Nth volunteer to look for -- so goal_reached_at is null for every chapter below.
 goal_hit as (
     select chapter_id, hire_datetime as goal_reached_at
     from (
@@ -101,7 +113,11 @@ goal_hit as (
             row_number() over (partition by chapter_id order by hire_datetime, volunteer_id) as rn
         from window_intake
     ) ranked
+    {% if campaign_goal is not none %}
     where rn = {{ campaign_goal }}
+    {% else %}
+    where false
+    {% endif %}
 ),
 
 chapter_totals as (
@@ -119,10 +135,15 @@ ranked as (
         chapter_id,
         window_total,
         goal_reached_at,
+        {% if campaign_goal is not none %}
         (goal_reached_at is not null) as reached_goal,
         case when goal_reached_at is not null then
             dense_rank() over (order by goal_reached_at)
         end as rank_first_to_goal,
+        {% else %}
+        cast(null as boolean) as reached_goal,
+        cast(null as bigint) as rank_first_to_goal,
+        {% endif %}
         dense_rank() over (order by window_total desc) as rank_by_volume
     from chapter_totals
 )
@@ -136,14 +157,14 @@ select
     d.day_label,
     d.day_short_name,
     d.recruited,
-    -- Cumulative across the window, so a cell can be read as progress toward the goal rather than
-    -- only as that day's activity.
+    -- Cumulative across the window, so a cell can be read as running progress rather than only as
+    -- that day's activity -- the primary leaderboard metric while campaign_goal is null.
     sum(d.recruited) over (
         partition by d.chapter_id order by d.date_key
         rows between unbounded preceding and current row
     ) as running_total,
     r.window_total,
-    {{ campaign_goal }} as campaign_goal,
+    {{ campaign_goal if campaign_goal is not none else 'cast(null as integer)' }} as campaign_goal,
     r.reached_goal,
     r.goal_reached_at,
     r.rank_first_to_goal,
@@ -152,4 +173,7 @@ select
 from daily d
 left join ranked r on d.chapter_id::text = r.chapter_id::text
 cross join unattributed u
-order by r.rank_first_to_goal nulls last, r.window_total desc, d.chapter, d.date_key
+-- Sorted by cumulative volume, not rank_first_to_goal -- there's no goal to race to by default
+-- (see header). If a future campaign sets campaign_goal, rank_first_to_goal still populates as a
+-- column, but the board's default sort stays on window_total.
+order by r.window_total desc, d.chapter, d.date_key
