@@ -133,6 +133,17 @@
 -- conversion_pct is not computed for this block (no prior stage to convert from -- these are two
 -- parallel categories, not a sequence).
 --
+-- FIFTH BLOCK, VOLUNTEER SOURCE (2026-09-13): funnel_block = 'volunteer_source'. Per-chapter (not
+-- national), scoped to chapters with classes_set_up = true. stage_relationship = 'exclusive' --
+-- New this year and Returning from last year are the two non-overlapping parts of
+-- volunteers_allocated_to_school:
+--   'New this year'             -- volunteers_new_this_year
+--   'Returning from last year'  -- volunteers_continuing
+-- Sourced directly from prod_sric_dashboard_data's own composition split (already tested to sum
+-- to volunteers_allocated_to_school) rather than re-deriving is_recruited_new logic against
+-- fct_volunteer_pipeline a third time. conversion_pct is not computed -- two parallel categories,
+-- not a sequence, same as the leads block above.
+--
 -- LAG PARTITION FIX (2026-09-12): with_conversion's window now partitions by (chapter_id,
 -- funnel_block), not chapter_id alone. Previously, rows from different funnel_blocks with the same
 -- chapter_id (including NULL, which SQL's PARTITION BY treats as one group) could tie on
@@ -207,6 +218,11 @@ intake_to_class_stage_dim as (
 leads_stage_dim as (
     select 1 as stage_order, 'Applied through a chapter''s link' as stage_name
     union all select 2, 'Applied directly'
+),
+
+volunteer_source_stage_dim as (
+    select 1 as stage_order, 'New this year' as stage_name
+    union all select 2, 'Returning from last year'
 ),
 
 -- is_new_this_year is the stable join key; volunteer_source is the display label only (Dalgo
@@ -330,6 +346,35 @@ leads_counts as (
     group by d.stage_order, d.stage_name
 ),
 
+-- Chapters scoped for the block below (2026-09-13): classes ready (classes_set_up = true) --
+-- deliberately not also gated on chapter_status, unlike prod_sric_national_display's stricter
+-- scope; a chapter can have classes running without being marked "active this year" on the sheet.
+volunteer_source_chapters as (
+    select distinct chapter_id, volunteers_new_this_year, volunteers_continuing
+    from {{ ref('prod_sric_dashboard_data') }}
+    where classes_set_up = true
+),
+
+-- Volunteer composition by chapter (2026-09-13): stage_relationship = 'exclusive' -- New this
+-- year and Returning from last year are the two non-overlapping parts of
+-- volunteers_allocated_to_school (tested to sum to it exactly in prod_sric_dashboard_data), same
+-- status-distribution shape as intake/leads. Sourced directly from prod_sric_dashboard_data's
+-- already-tested composition split rather than re-deriving is_recruited_new logic a third time.
+volunteer_source_counts as (
+    select
+        'volunteer_source' as funnel_block,
+        d.stage_order,
+        d.stage_name,
+        c.chapter_id,
+        cast(null as text) as volunteer_source,
+        case
+            when d.stage_order = 1 then c.volunteers_new_this_year
+            when d.stage_order = 2 then c.volunteers_continuing
+        end as volunteers
+    from volunteer_source_chapters c
+    cross join volunteer_source_stage_dim d
+),
+
 all_stages as (
     select * from intake_counts
     union all
@@ -340,6 +385,8 @@ all_stages as (
     select * from intake_to_class_counts
     union all
     select * from leads_counts
+    union all
+    select * from volunteer_source_counts
 ),
 
 with_conversion as (
@@ -354,7 +401,7 @@ with_conversion as (
 select
     a.funnel_block,
     case
-        when a.funnel_block in ('intake', 'leads') then 'exclusive'
+        when a.funnel_block in ('intake', 'leads', 'volunteer_source') then 'exclusive'
         when a.funnel_block = 'intake_to_class' then 'nested'
         else 'overlapping'
     end as stage_relationship,
