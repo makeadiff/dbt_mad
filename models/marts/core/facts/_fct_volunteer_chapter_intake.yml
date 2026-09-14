@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: fct_volunteer_chapter_intake
+    description: >
+      One row per hired volunteer per academic year, with the chapter that claimed them.
+      attribution_source records which of two sources resolved chapter_id: workforce (PC
+      placement, primary) or bubble (fallback). See the model's header and
+      SRI_DASHBOARD_SPEC.md §6.15 for the investigation behind the precedence.
+    columns:
+      - name: volunteer_id
+        tests:
+          - not_null
+      - name: attribution_source
+        description: >
+          Which source resolved chapter_id for this row -- 'workforce' (PC placement, checked
+          first) or 'bubble' (fallback, only when no workforce row exists). Null when neither
+          source has attributed this hire yet.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['workforce', 'bubble']
+      - name: chapter_id
+        tests:
+          - not_null:
+              config:
+                where: "is_chapter_attributed"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - volunteer_id
+              - academic_year
