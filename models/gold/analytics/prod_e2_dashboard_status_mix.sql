@@ -63,22 +63,32 @@ session_not_happened_breakdown_mix as (
     from {{ ref('fct_e2_sessions_summary') }}
 ),
 
--- Planned / Planned Till Date / Happened are not a partition (each is a superset of the next, not a
--- complement) -- unlike every other metric_group here, these don't sum to a clean whole. Meant for a
--- grouped bar comparing all three per chapter, not a pie or stacked bar.
---   Planned -- total_planned_sessions, the full annual target.
---   Planned Till Date -- classes_due_till_date, what should have happened by today (excludes
---     classes_not_yet_due -- sessions whose own 7-day grace period hasn't expired yet, so they
---     haven't been judged one way or the other).
---   Happened -- classes_conducted, what actually happened.
+-- Annual Planned Session / Ideal Session Count / Session Planned / Session Happened are not a
+-- partition (no clean sum relationship across all four) -- unlike every other metric_group here.
+-- Meant for a grouped bar comparing them per chapter, not a pie or stacked bar.
+--   Annual Planned Session -- total_planned_sessions, the full annual target (the only one of these
+--     that still counts unslotted sections, at the ideal 2-slots rate, for the full window).
+--   Ideal Session Count -- ideal_session_count: total_sections (slotted + unslotted) x 2 ideal slots
+--     x weeks_elapsed (till today only, not the full window) -- "what would be due by now if every
+--     section already had its ideal 2 slots." A separate standalone benchmark, not reconciled against
+--     anything else here.
+--   Session Planned -- classes_due_till_date, what should have happened by today: session_happened +
+--     classes_cancelled + classes_with_volunteer_absenteeism + classes_without_assigned_volunteer.
+--     Purely slotted-section-based (unslotted sections contribute 0 here, unlike Annual Planned
+--     Session) and excludes classes_not_yet_due -- sessions whose own 7-day grace period hasn't
+--     expired yet, so they haven't been judged one way or the other.
+--   Session Happened -- classes_conducted, what actually happened.
 session_delivery_mix as (
-    select chapter_id, academic_year, 'Session Delivery' as metric_group, 'Planned' as category, total_planned_sessions as count
+    select chapter_id, academic_year, 'Session Delivery' as metric_group, 'Annual Planned Session' as category, total_planned_sessions as count
     from {{ ref('fct_e2_sessions_summary') }}
     union all
-    select chapter_id, academic_year, 'Session Delivery', 'Planned Till Date', classes_due_till_date
+    select chapter_id, academic_year, 'Session Delivery', 'Ideal Session Count', ideal_session_count
     from {{ ref('fct_e2_sessions_summary') }}
     union all
-    select chapter_id, academic_year, 'Session Delivery', 'Happened', classes_conducted
+    select chapter_id, academic_year, 'Session Delivery', 'Session Planned', classes_due_till_date
+    from {{ ref('fct_e2_sessions_summary') }}
+    union all
+    select chapter_id, academic_year, 'Session Delivery', 'Session Happened', classes_conducted
     from {{ ref('fct_e2_sessions_summary') }}
 ),
 

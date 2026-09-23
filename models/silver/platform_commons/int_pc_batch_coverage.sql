@@ -66,7 +66,8 @@ batch_slot_shift as (
 tagged_volunteers as (
     select
         wssub.worknode_slot_shift_id,
-        ssul.owner_user_id
+        ssul.owner_user_id,
+        ssul.is_active as volunteer_tag_is_active
     from {{ ref('stg_pc_worknode_slot_shift_user_bridge') }} wssub
     join {{ ref('stg_pc_worknode_slot_shift_user_list') }} ssul
         on wssub.slot_shift_user_id = ssul.slot_shift_user_id
@@ -94,6 +95,7 @@ select
     bss.worknode_slot_id,
     bss.slot_is_active,
     tv.owner_user_id,
+    tv.volunteer_tag_is_active,
     coalesce(abss.worknode_slot_shift_id is not null, abb.sc_level_batch_id is not null, false) as has_attendance
 from level_batch lb
 left join sc_level_id_table slit on lb.sc_level_id = slit.sc_level_id_table_id
