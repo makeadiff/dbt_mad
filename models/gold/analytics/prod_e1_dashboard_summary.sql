@@ -18,9 +18,37 @@
 -- assignment or engine concept exists in platform_commons) and total_volunteers_in_school is now
 -- sourced from fct_e1_school_coverage directly (all-time distinct tagged volunteers per school; see
 -- that model's header for how this differs from E2's recruitment-bucket-based version).
--- Still missing vs. prod_e2_dashboard_summary: fct_e2_volunteer_consistency, fct_e2_child_consistency
--- -- no E1 equivalent yet. Add the corresponding left joins here (matching
--- prod_e2_dashboard_summary's pattern) as each E1 fact/dim gets built.
+-- Now also joins in fct_e1_volunteer_consistency/fct_e1_child_consistency for the
+-- volunteers_healthy/at_risk/unhealthy/no_sessions and children_healthy/at_risk/unhealthy/no_sessions
+-- breakdowns -- E1's counterpart to prod_e2_dashboard_summary's volunteer_metrics/child_metrics.
+-- See fct_e1_volunteer_consistency's header for its planned_sessions estimation tradeoff (no
+-- per-volunteer allocation start date in platform_commons, unlike E2).
+
+with volunteer_metrics as (
+    select
+        school_id,
+        academic_year,
+        count(distinct volunteer_id) as total_volunteers,
+        count(*) filter (where consistency_status = 'Healthy') as volunteers_healthy,
+        count(*) filter (where consistency_status = 'At Risk') as volunteers_at_risk,
+        count(*) filter (where consistency_status = 'Unhealthy') as volunteers_unhealthy,
+        count(*) filter (where consistency_status = 'No Sessions Yet') as volunteers_no_sessions
+    from {{ ref('fct_e1_volunteer_consistency') }}
+    group by school_id, academic_year
+),
+
+child_metrics as (
+    select
+        school_id,
+        academic_year,
+        count(distinct student_id) as total_children,
+        count(*) filter (where consistency_status = 'Healthy') as children_healthy,
+        count(*) filter (where consistency_status = 'At Risk') as children_at_risk,
+        count(*) filter (where consistency_status = 'Unhealthy') as children_unhealthy,
+        count(*) filter (where consistency_status = 'No Sessions Yet') as children_no_sessions
+    from {{ ref('fct_e1_child_consistency') }}
+    group by school_id, academic_year
+)
 
 select
     cbs.school_id,
@@ -51,10 +79,26 @@ select
     ss.pct_substitute_sessions,
     ss.pct_cancellations,
     coalesce(ss.total_cancellations, 0) as total_cancellations,
-    ss.cancellation_reasons
+    ss.cancellation_reasons,
+    coalesce(vm.total_volunteers, 0) as consistency_total_volunteers,
+    coalesce(vm.volunteers_healthy, 0) as volunteers_healthy,
+    coalesce(vm.volunteers_at_risk, 0) as volunteers_at_risk,
+    coalesce(vm.volunteers_unhealthy, 0) as volunteers_unhealthy,
+    coalesce(vm.volunteers_no_sessions, 0) as volunteers_no_sessions,
+    coalesce(cm.total_children, 0) as consistency_total_children,
+    coalesce(cm.children_healthy, 0) as children_healthy,
+    coalesce(cm.children_at_risk, 0) as children_at_risk,
+    coalesce(cm.children_unhealthy, 0) as children_unhealthy,
+    coalesce(cm.children_no_sessions, 0) as children_no_sessions
 from {{ ref('fct_e1_school_coverage') }} cbs
 left join {{ ref('dim_pc_school') }} sch
     on cbs.school_id = sch.school_id
 left join {{ ref('fct_e1_session_summary') }} ss
     on cbs.school_id = ss.school_id
     and cbs.academic_year = ss.academic_year
+left join volunteer_metrics vm
+    on cbs.school_id = vm.school_id
+    and cbs.academic_year = vm.academic_year
+left join child_metrics cm
+    on cbs.school_id = cm.school_id
+    and cbs.academic_year = cm.academic_year

@@ -30,6 +30,11 @@ vars:
   campaign_start: "2026-09-10"
   campaign_end: "2026-09-21"
   campaign_goal: null
+  # E2 sessionops: the "ideal" number of weekly slots a class_section should have. Used only for
+  # aspirational/benchmark figures (annual_planned_session's unslotted contribution, ideal_session_count
+  # in fct_e2_sessions_summary) -- never for the real per-slot classification in
+  # fct_e2_planned_session_status, which always uses each section's actual scheduled slot count.
+  ideal_slot_count: 2
 
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models

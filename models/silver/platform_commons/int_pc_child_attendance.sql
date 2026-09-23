@@ -257,6 +257,7 @@ select distinct on (
 
     -- Identifiers
     bs.student_id as "ChildId",
+    lb.sc_level_batch_id as "SchoolLevelBatchId",
     bs.is_active as "ChildActiveStatus",
     p.first_name || ' ' || coalesce(p.last_name, '') as "ChildName",
     upper(coalesce(p.gender_identifier, g.gender_label)) as "Gender",

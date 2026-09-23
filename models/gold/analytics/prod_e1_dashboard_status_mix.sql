@@ -9,9 +9,10 @@
 -- fct_e1_cancellation_reasons, dim_pc_school), per this project's gold/analytics-builds-on-marts-only
 -- convention.
 --
--- Missing vs. prod_e2_dashboard_status_mix:
--- - 'Volunteer Consistency' / 'Child Consistency': no fct_e1 equivalent of
---   fct_e2_volunteer_consistency/fct_e2_child_consistency exists yet.
+-- 'Volunteer Consistency' / 'Child Consistency' metric_groups pull from
+-- fct_e1_volunteer_consistency/fct_e1_child_consistency -- see fct_e1_volunteer_consistency's
+-- header for its planned_sessions estimation tradeoff (no per-volunteer allocation start date in
+-- platform_commons, unlike E2).
 -- 'Cancellation Reason' category is platform_commons' raw requesting_reason text (see
 -- fct_e1_cancellation_reasons for detail) -- passed through as-is, same as E2's holiday_reason.
 -- 'Session Delivery' (Planned/Happened) and 'Session Not Happened Breakdown' (Cancelled/Absent) both
@@ -20,7 +21,29 @@
 -- no schedule-start signal to compute the real thing from). See that model's header for the formula
 -- and its known overestimation tradeoff before reading these two metric_groups as precise.
 
-with session_happened_breakdown_mix as (
+with volunteer_consistency_mix as (
+    select
+        school_id,
+        academic_year,
+        'Volunteer Consistency' as metric_group,
+        consistency_status as category,
+        count(distinct volunteer_id) as count
+    from {{ ref('fct_e1_volunteer_consistency') }}
+    group by school_id, academic_year, consistency_status
+),
+
+child_consistency_mix as (
+    select
+        school_id,
+        academic_year,
+        'Child Consistency' as metric_group,
+        consistency_status as category,
+        count(distinct student_id) as count
+    from {{ ref('fct_e1_child_consistency') }}
+    group by school_id, academic_year, consistency_status
+),
+
+session_happened_breakdown_mix as (
     select school_id, academic_year, 'Session Happened Breakdown' as metric_group, 'Original Session' as category, total_original_sessions as count
     from {{ ref('fct_e1_session_summary') }}
     union all
@@ -74,6 +97,10 @@ section_volunteer_coverage_mix as (
 ),
 
 unpivoted as (
+    select * from volunteer_consistency_mix
+    union all
+    select * from child_consistency_mix
+    union all
     select * from session_happened_breakdown_mix
     union all
     select * from cancellation_reason_mix

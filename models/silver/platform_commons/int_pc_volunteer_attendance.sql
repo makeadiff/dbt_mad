@@ -140,6 +140,7 @@ select distinct on (a.attendance_id)
     -- ── Tagged Volunteer ─────────────────────────────────────────────────────────
     a.attendance_id,
     a.community_member_id                                                               as tagged_volunteer_id,
+    vm.user_id                                                                          as tagged_volunteer_user_id,
     vol.full_name                                                                       as tagged_volunteer_name,
     -- isAttendanceTakenForTaggedVolunteer: TRUE for all rows (already filtered to PRESENT/ABSENT)
     true                                                                                as is_attendance_taken_for_tagged_volunteer,
