@@ -6,22 +6,48 @@
 -- met chapter reads "Met" rather than blank (the metric model keeps NULL). The two "no volunteer"
 -- columns stay here but are left out of the Dalgo table (always 0 today).
 -- Shows the CHO only, as "Chapter organiser"; co_name stays in the metric model for the CO rollup.
+--
+-- Column order is the dashboard's story (spec §3.5b), which Dalgo follows: children -> mentoring
+-- circles and slots -> volunteers -> sessions. "Sessions held since 1 October" sums
+-- prod_do_weekly_sessions (circle-sessions, §3.3b counting); it joins here rather than in the
+-- summary because the weekly model already refs the summary.
+
+with sessions_since_1_oct as (
+    select chapter_id, sum(sessions_held)::bigint as sessions_held
+    from {{ ref('prod_do_weekly_sessions') }}
+    group by 1
+)
 
 select
-    chapter_name                                                        as "Chapter",
-    city                                                                as "City",
-    cho_name                                                            as "Chapter organiser",
-    district                                                            as "District",
-    do_name                                                             as "DO",
-    mentoring_circles_total                                             as "Mentoring circles",
-    mentoring_circles_with_slot                                         as "Mentoring circles with a slot",
-    mentoring_circles_no_slot                                           as "Mentoring circles with no slot",
-    mentoring_circles_0_volunteers                                      as "Mentoring circles with no volunteer",
-    mentoring_circles_1_volunteer                                       as "Mentoring circles with 1 volunteer",
-    mentoring_circles_2plus_volunteers                                  as "Mentoring circles with 2 or more volunteers",
-    case when volunteer_requirement_met_1to5 then 'Yes' else 'No' end   as "Volunteer requirement met (1:5)",
-    case when volunteer_requirement_met_2to5 then 'Yes' else 'No' end   as "Volunteer requirement met (2:5)",
-    case volunteer_requirement_not_met_reason
+    s.chapter_name                                                      as "Chapter",
+    s.city                                                              as "City",
+    s.cho_name                                                          as "Chapter organiser",
+    s.district                                                          as "District",
+    s.do_name                                                           as "DO",
+    -- Children
+    s.active_children                                                   as "Active children",
+    s.children_covered                                                  as "Children covered",
+    s.pct_children_covered                                              as "% of children covered",
+    s.children_in_circle_no_volunteer                                   as "Children in a mentoring circle with no volunteer",
+    s.children_in_circle_no_slot                                        as "Children in a mentoring circle with no slot",
+    s.children_in_no_class_section                                      as "Children in no class section",
+    -- Mentoring circles and slots
+    s.total_slots                                                       as "Slots",
+    s.mentoring_circles_total                                           as "Mentoring circles",
+    s.mentoring_circles_with_slot                                       as "Mentoring circles with a slot",
+    s.mentoring_circles_no_slot                                         as "Mentoring circles with no slot",
+    -- Volunteers
+    s.volunteers_needed                                                 as "Volunteers needed",
+    s.volunteers_in_chapter                                             as "Volunteers in the chapter",
+    s.volunteers_allocated                                              as "Volunteers allocated to a mentoring circle",
+    s.volunteers_not_allocated                                          as "Volunteers not allocated",
+    s.mentoring_circles_needing_volunteer                               as "Mentoring circles still needing a volunteer",
+    s.mentoring_circles_0_volunteers                                    as "Mentoring circles with no volunteer",
+    s.mentoring_circles_1_volunteer                                     as "Mentoring circles with 1 volunteer",
+    s.mentoring_circles_2plus_volunteers                                as "Mentoring circles with 2 or more volunteers",
+    case when s.volunteer_requirement_met_1to5 then 'Yes' else 'No' end as "Volunteer requirement met (1:5)",
+    case when s.volunteer_requirement_met_2to5 then 'Yes' else 'No' end as "Volunteer requirement met (2:5)",
+    case s.volunteer_requirement_not_met_reason
         when 'no_data' then 'No data this year'
         when 'no_slots' then 'No slots set up'
         when 'no_circles' then 'No mentoring circles set up'
@@ -29,23 +55,22 @@ select
         when 'circles_without_volunteer' then 'Some circles have no volunteer'
         else 'Met'
     end                                                                 as "Why volunteer requirement not met",
-    mentoring_circles_not_yet_due                                       as "Mentoring circles with first session upcoming",
-    mentoring_circles_not_started                                       as "Mentoring circles not started",
-    mentoring_circles_no_session_since_1_oct                            as "Mentoring circles with no session since 1 October",
-    pct_mentoring_circles_started                                       as "% of mentoring circles started",
-    case when sessions_commenced_met then 'Yes' else 'No' end           as "Sessions commenced",
-    case sessions_commenced_not_met_reason
+    -- Sessions
+    case when s.has_sessions_started then 'Yes' else 'No' end           as "Sessions started",
+    case when s.sessions_commenced_met then 'Yes' else 'No' end         as "All mentoring circles started",
+    s.pct_mentoring_circles_started                                     as "% of mentoring circles started",
+    s.mentoring_circles_not_yet_due                                     as "Mentoring circles with first session upcoming",
+    s.mentoring_circles_not_started                                     as "Mentoring circles not started",
+    s.mentoring_circles_no_session_since_1_oct                          as "Mentoring circles with sessions in September, none since 1 Oct",
+    coalesce(w.sessions_held, 0)                                        as "Sessions held since 1 October",
+    case s.sessions_commenced_not_met_reason
         when 'no_data' then 'No data this year'
         when 'no_slots' then 'No slots set up'
         when 'no_circles' then 'No mentoring circles set up'
         when 'circles_not_started' then 'Some mentoring circles haven''t started'
         when 'circles_not_yet_due' then 'First session upcoming'
         else 'Met'
-    end                                                                 as "Why sessions not commenced",
-    active_children                                                     as "Active children",
-    children_covered                                                    as "Children covered",
-    pct_children_covered                                                as "% of children covered",
-    children_in_circle_no_volunteer                                     as "Children in a mentoring circle with no volunteer",
-    children_in_circle_no_slot                                          as "Children in a mentoring circle with no slot",
-    children_in_no_class_section                                        as "Children in no class section"
-from {{ ref('prod_do_chapter_summary') }}
+    end                                                                 as "Why not all mentoring circles started"
+from {{ ref('prod_do_chapter_summary') }} s
+left join sessions_since_1_oct w
+    on s.chapter_id = w.chapter_id
