@@ -47,24 +47,3 @@ models:
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
       should ref() this model. One row of national tiles, sourced from prod_do_national_kpis.
-
-  - name: prod_do_chapter_summary_daily
-    description: >
-      Daily history of prod_do_chapter_summary (prod only, incremental, never full-refreshed).
-      snapshot_date is the IST date of the run.
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - snapshot_date
-              - chapter_id
-
-  - name: prod_do_national_kpis_daily
-    description: >
-      Daily history of prod_do_national_kpis (prod only, incremental, never full-refreshed).
-      snapshot_date is the IST date of the run.
-    columns:
-      - name: snapshot_date
-        tests:
-          - unique
-          - not_null
