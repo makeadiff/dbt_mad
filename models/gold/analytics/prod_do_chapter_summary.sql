@@ -4,43 +4,30 @@
 -- requirement met, 1:5 and 2:5), Metric 2 (sessions commenced) and child cover. Metric 4 joins
 -- this model later.
 --
--- Reaches into silver (int_bubble__slot, int_bubble__slot_class_section,
--- int_bubble__slot_class_section_volunteer, int_bubble__class_section, int_bubble__school_class,
--- int_bubble__child_class, int_bubble__child_class_section, int_bubble__child_removal_log) rather
--- than marts-only, because no mart carries circle-grain (section x slot) data with the
--- active/removed flags at every level. If the later CHO volunteer and child views need the same
--- circles, push the circle and child CTEs down into a new fct_ then.
---
--- Live mentoring circle (with a slot): one distinct (slot_id, class_section_id) pair whose
--- slot_class_section row, slot and class_section are all active and not removed, with the slot in
--- AY 2026-27. The school_class flag is deliberately NOT used: circles mix grades, so a live section
--- can sit under a class flagged removed (443's 8th) or have no class at all (554's sections,
--- school_class_id empty in sessionops_raw). When a class is truly removed its sections are removed
--- too (604).
---
--- A mentoring circle is a live class section with active children. Circles with a slot count per
--- section-slot pair (a section with two slots is two circles: 554 = 18 sections, 26 circles, as the
--- frontend shows); pairs whose section has no active children are dropped. Circles with no slot
--- count per section. mentoring_circles_total adds the two.
+-- Circles with a slot come from prod_do_mentoring_circles (one per section-slot pair, see its
+-- header) and active children from prod_do_active_children. Reaches into silver
+-- (int_bubble__slot, int_bubble__class_section, int_bubble__child_class_section) for the slot
+-- count, the no-slot circles and child cover. A mentoring circle is a live class section with
+-- active children; mentoring_circles_total adds circles with a slot and circles with no slot.
 --
 -- Mentoring circle with no slot: a live class section (active, not removed, in the chapter's
 -- 2026-27 year) with >= 1 active child but no live slot link, one per section. In Bubble a section
 -- only gets a slot link once a volunteer is placed, so these are the real volunteer gap (604: 4).
 -- Sections with no active children are ignored.
 --
--- Active child: child active and not removed; child_class not removed, on a not-removed
--- school_class in the chapter's 2026-27 year; no not-removed child_removal_log row dated after
--- that enrolment. Verified against the frontend at 427 / 604 / 56 / 554.
---
 -- Child cover: a child's sections are their not-removed child_class_section links to live
 -- sections at the chapter, with no match to the child's enrolled class. Each child lands in the
 -- worst group that applies: in no class section > in a circle with no slot > in a circle with no
 -- volunteer > covered. The four groups sum to active_children.
 --
--- Metric 2: a circle with a slot has started when >= 1 session was held on any row of its
--- section-slot pair in AY 2026-27: a DOTS volunteer attendance record marked present, or absent
--- with a substitute (fct_e2_volunteer_attendance_by_slot_date). DOTS holds no planned or cancelled
--- sessions, so those can't count. Circles with no slot are left out of Metric 2.
+-- Metric 2 (spec §3.2): a circle with a slot has started when >= 1 session was held in AY
+-- 2026-27 (present, or absent with a substitute). Planned or cancelled sessions don't count.
+-- Circles with no slot, and circles not yet due (first planned session still ahead), are left out
+-- and shown alongside; a chapter needs >= 1 due circle to meet Metric 2. Circles that started before 1 Oct but have held nothing since are flagged
+-- (mentoring_circles_no_session_since_1_oct); the flag doesn't change the met flag.
+--
+-- District and DO come from seed_do_chapter_district (a temporary seed from the DO dashboard
+-- sheet, until district lands in a mapping source).
 --
 -- Grain: one row per chapter_id (62 active E2 chapters in dim_chapter_mapping).
 
@@ -81,32 +68,12 @@ live_sections as (
     where cs.is_active and not cs.is_removed
 ),
 
-live_scs_rows as (
-    select scs.slot_class_section_id, scs.slot_id, scs.class_section_id, ls.chapter_id
-    from {{ ref('int_bubble__slot_class_section') }} scs
-    join live_slots ls
-        on scs.slot_id = ls.slot_id
-    join {{ ref('int_bubble__class_section') }} cs
-        on scs.class_section_id = cs.class_section_id
-    where scs.is_active and not scs.is_removed
-      and cs.is_active and not cs.is_removed
-),
-
--- One circle per section-slot pair; a volunteer on any of the pair's rows fills it.
 circles as (
-    select
-        r.chapter_id,
-        r.slot_id,
-        r.class_section_id,
-        count(distinct v.volunteer_id) as volunteers
-    from live_scs_rows r
-    left join {{ ref('int_bubble__slot_class_section_volunteer') }} v
-        on r.slot_class_section_id = v.slot_class_section_id
-       and v.is_active and not v.is_removed
-    group by 1, 2, 3
+    select * from {{ ref('prod_do_mentoring_circles') }}
 ),
 
 -- Per live section: does it have a slot link, and does any of its circles lack a volunteer.
+-- Sections with no active child have no circles here, but no active child sits in them either.
 section_status as (
     select
         s.chapter_id,
@@ -126,28 +93,9 @@ slot_counts as (
     group by 1
 ),
 
-latest_removal as (
-    select child_id, max(created_date) as last_removal_date
-    from {{ ref('int_bubble__child_removal_log') }}
-    where not is_removed
-    group by 1
-),
-
 active_children as (
-    select distinct sy.chapter_id, cc.child_id
-    from {{ ref('int_bubble__child_class') }} cc
-    join {{ ref('int_bubble__school_class') }} sc
-        on cc.school_class_id = sc.school_class_id
-    join school_years sy
-        on sc.school_academic_year_id = sy.school_academic_year_id
-    join {{ ref('int_bubble__children') }} c
-        on cc.child_id = c.child_id
-    left join latest_removal rl
-        on cc.child_id = rl.child_id
-    where c.is_active and not c.is_removed
-      and not cc.is_removed
-      and not sc.is_removed
-      and (rl.last_removal_date is null or rl.last_removal_date <= cc.created_date)
+    select chapter_id, child_id
+    from {{ ref('prod_do_active_children') }}
 ),
 
 child_sections as (
@@ -161,32 +109,6 @@ child_sections as (
        and ac.chapter_id = ss.chapter_id
 ),
 
-held_pairs as (
-    select distinct scs.slot_id, scs.class_section_id
-    from {{ ref('fct_e2_volunteer_attendance_by_slot_date') }} a
-    join {{ ref('int_bubble__slot_class_section') }} scs
-        on a.slot_class_section_id = scs.slot_class_section_id
-    where a.academic_year = '2026-2027'
-      and (upper(trim(a.attendance)) = 'TRUE' or a.is_substitute)
-),
-
--- Circles with a slot, dropping pairs whose section has no active children.
-counted_circles as (
-    select
-        c.*,
-        exists (
-            select 1 from held_pairs h
-            where h.slot_id = c.slot_id
-              and h.class_section_id = c.class_section_id
-        ) as started
-    from circles c
-    where exists (
-        select 1 from child_sections cs
-        where cs.chapter_id = c.chapter_id
-          and cs.class_section_id = c.class_section_id
-    )
-),
-
 circle_counts as (
     select
         chapter_id,
@@ -194,9 +116,11 @@ circle_counts as (
         count(*) filter (where volunteers = 0) as mentoring_circles_0_volunteers,
         count(*) filter (where volunteers = 1) as mentoring_circles_1_volunteer,
         count(*) filter (where volunteers >= 2) as mentoring_circles_2plus_volunteers,
-        count(*) filter (where started) as mentoring_circles_started,
-        count(*) filter (where not started) as mentoring_circles_not_started
-    from counted_circles
+        count(*) filter (where not is_due) as mentoring_circles_not_yet_due,
+        count(*) filter (where is_due and is_started) as mentoring_circles_started,
+        count(*) filter (where is_due and not is_started) as mentoring_circles_not_started,
+        count(*) filter (where held_before_1_oct and not held_since_1_oct) as mentoring_circles_no_session_since_1_oct
+    from circles
     group by 1
 ),
 
@@ -245,8 +169,8 @@ joined as (
         ch.city_name as city,
         ch.co_name,
         ch.cho_name,
-        null::text as district,
-        null::text as do_name,
+        dd.district,
+        dd.do_name,
         '2026-2027' as academic_year,
         coalesce(ays.is_ay_active, false) as has_data_this_year,
         coalesce(sl.total_slots, 0) as total_slots,
@@ -255,14 +179,17 @@ joined as (
         coalesce(cc.mentoring_circles_0_volunteers, 0) as mentoring_circles_0_volunteers,
         coalesce(cc.mentoring_circles_1_volunteer, 0) as mentoring_circles_1_volunteer,
         coalesce(cc.mentoring_circles_2plus_volunteers, 0) as mentoring_circles_2plus_volunteers,
+        coalesce(cc.mentoring_circles_not_yet_due, 0) as mentoring_circles_not_yet_due,
         coalesce(cc.mentoring_circles_started, 0) as mentoring_circles_started,
         coalesce(cc.mentoring_circles_not_started, 0) as mentoring_circles_not_started,
+        coalesce(cc.mentoring_circles_no_session_since_1_oct, 0) as mentoring_circles_no_session_since_1_oct,
         coalesce(kc.active_children, 0) as active_children,
         coalesce(kc.children_covered, 0) as children_covered,
         coalesce(kc.children_in_circle_no_volunteer, 0) as children_in_circle_no_volunteer,
         coalesce(kc.children_in_circle_no_slot, 0) as children_in_circle_no_slot,
         coalesce(kc.children_in_no_class_section, 0) as children_in_no_class_section
     from chapters ch
+    left join {{ ref('seed_do_chapter_district') }} dd on ch.chapter_id = dd.chapter_id
     left join ay_status ays on ch.chapter_id = ays.chapter_id
     left join slot_counts sl on ch.chapter_id = sl.chapter_id
     left join circle_counts cc on ch.chapter_id = cc.chapter_id
@@ -304,10 +231,15 @@ select
         when mentoring_circles_no_slot > 0 then 'circles_with_no_slot'
         when mentoring_circles_0_volunteers > 0 then 'circles_without_volunteer'
     end as volunteer_requirement_not_met_reason,
+    mentoring_circles_not_yet_due,
     mentoring_circles_started,
     mentoring_circles_not_started,
+    mentoring_circles_no_session_since_1_oct,
+    -- Of circles that are due (not-yet-due circles are left out).
+    round(100.0 * mentoring_circles_started / nullif(mentoring_circles_started + mentoring_circles_not_started, 0), 1) as pct_mentoring_circles_started,
+    -- Needs >= 1 due circle: a chapter whose circles are all not yet due hasn't commenced (600).
     (has_data_this_year
-        and mentoring_circles_with_slot >= 1
+        and mentoring_circles_started >= 1
         and mentoring_circles_not_started = 0) as sessions_commenced_met,
     -- First reason that applies; null when met.
     case
@@ -315,10 +247,12 @@ select
         when total_slots = 0 then 'no_slots'
         when mentoring_circles_with_slot = 0 then 'no_circles'
         when mentoring_circles_not_started > 0 then 'circles_not_started'
+        when mentoring_circles_started = 0 then 'circles_not_yet_due'
     end as sessions_commenced_not_met_reason,
     active_children,
     children_covered,
     children_in_circle_no_volunteer,
     children_in_circle_no_slot,
-    children_in_no_class_section
+    children_in_no_class_section,
+    round(100.0 * children_covered / nullif(active_children, 0), 1) as pct_children_covered
 from joined

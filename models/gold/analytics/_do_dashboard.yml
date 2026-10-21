@@ -1,5 +1,19 @@
 version: 2
 
+seeds:
+  - name: seed_do_chapter_district
+    description: >
+      Temporary chapter -> district -> DO list from the DO dashboard sheet (62 active E2
+      chapters), until district lands in a mapping source. DO names are first names.
+    config:
+      column_types:
+        chapter_id: text
+    columns:
+      - name: chapter_id
+        tests:
+          - unique
+          - not_null
+
 models:
   - name: prod_do_chapter_summary
     description: >
@@ -39,7 +53,7 @@ models:
         quote: true
         tests:
           - not_null
-      - name: Why not met
+      - name: Why volunteer requirement not met
         quote: true
         description: First reason that applies when the 1:5 requirement isn't met; empty when met.
 
@@ -47,3 +61,90 @@ models:
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
       should ref() this model. One row of national tiles, sourced from prod_do_national_kpis.
+
+  - name: prod_do_active_children
+    description: >
+      Shared base: every active child per chapter for AY 2026-27. Feeds child cover and the
+      mentoring-circle rule. Not read by Dalgo.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - child_id
+
+  - name: prod_do_mentoring_circles
+    description: >
+      Shared base: every mentoring circle with a slot (one per section-slot pair), with volunteers,
+      slot-link start, first planned session and held flags. Feeds Metrics 1 and 2 and the weekly
+      sessions view. Not read by Dalgo.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - slot_id
+              - class_section_id
+
+  - name: prod_do_volunteer_session_dates
+    description: >
+      Shared base: every planned volunteer session from 2026-10-01 with taken / held flags. Feeds
+      Metric 3. Not read by Dalgo.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - volunteer_id
+              - slot_class_section_id
+              - session_date
+
+  - name: prod_do_volunteer_consistency
+    description: >
+      DO dashboard (E2) Metric 3, snake_case. One row per chapter per period (Since 1 October,
+      each month from October 2026, Last 28 days).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - period_type
+              - period_start
+
+  - name: prod_do_national_consistency
+    description: National Metric 3 per period, ratio of sums, snake_case.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - period_type
+              - period_start
+
+  - name: prod_do_weekly_sessions
+    description: >
+      DO dashboard (E2) weekly sessions, ideal / planned / held per mentoring circle, snake_case.
+      One row per chapter per week (Monday start) from the week of 28 Sep, counting from 2026-10-01.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - week_start
+
+  - name: prod_do_consistency_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per chapter per period.
+
+  - name: prod_do_national_consistency_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per period.
+
+  - name: prod_do_weekly_sessions_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per chapter per week.
+
+  - name: prod_do_national_weekly_sessions_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per week, national.
