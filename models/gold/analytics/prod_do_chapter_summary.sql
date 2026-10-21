@@ -26,6 +26,16 @@
 -- and shown alongside; a chapter needs >= 1 due circle to meet Metric 2. Circles that started before 1 Oct but have held nothing since are flagged
 -- (mentoring_circles_no_session_since_1_oct); the flag doesn't change the met flag.
 --
+-- Volunteers (spec §3.5b): needed = 1 per mentoring circle (the 1:5 requirement). Allocated =
+-- distinct volunteers with an active allocation on a live circle with a slot (the Metric 1 rule).
+-- In the chapter = volunteers whose most recent active, not-removed 2026-27 school_volunteer row
+-- (latest created_date) is at the chapter, leaving out @yopmail.com test logins, plus every
+-- allocated volunteer. Most recent only, because Bubble doesn't close the old row when a volunteer
+-- moves school and the frontend shows them at the new one (604: 2 moved to 380 on 29 Sep). Allocated
+-- are added because 3 (178, 571) only have a 2025-26 row, and someone placed on a live circle is in
+-- the chapter, so in the chapter >= allocated always. Checked against the frontend at 427 / 604 /
+-- 554 (427 is +1: Kajal Na, the Checkpoint 0 gap).
+--
 -- District and DO come from seed_do_chapter_district (a temporary seed from the DO dashboard
 -- sheet, until district lands in a mapping source).
 --
@@ -131,6 +141,57 @@ no_slot_circle_counts as (
     group by 1
 ),
 
+allocated_volunteers as (
+    select distinct c.chapter_id, v.volunteer_id
+    from circles c
+    join {{ ref('int_bubble__slot_class_section') }} scs
+        on c.slot_id = scs.slot_id
+       and c.class_section_id = scs.class_section_id
+       and scs.is_active and not scs.is_removed
+    join {{ ref('int_bubble__slot_class_section_volunteer') }} v
+        on scs.slot_class_section_id = v.slot_class_section_id
+       and v.is_active and not v.is_removed
+),
+
+school_volunteer_latest as (
+    select
+        sy.chapter_id,
+        sv.volunteer_id,
+        row_number() over (
+            partition by sv.volunteer_id
+            order by sv.created_date desc, sv.school_volunteer_id desc
+        ) as recency
+    from {{ ref('int_bubble__school_volunteer') }} sv
+    join school_years sy
+        on sv.school_academic_year_id = sy.school_academic_year_id
+       and sv.school_id::text = sy.chapter_id
+    where sv.is_active and not sv.is_removed
+),
+
+chapter_volunteers as (
+    select svl.chapter_id, svl.volunteer_id
+    from school_volunteer_latest svl
+    left join {{ ref('int_bubble__user') }} u
+        on svl.volunteer_id = u.volunteer_id
+    where svl.recency = 1
+      and coalesce(u.user_login, '') not ilike '%@yopmail.com'
+    union
+    select chapter_id, volunteer_id
+    from allocated_volunteers
+),
+
+volunteer_counts as (
+    select
+        cv.chapter_id,
+        count(distinct cv.volunteer_id) as volunteers_in_chapter,
+        count(distinct av.volunteer_id) as volunteers_allocated
+    from chapter_volunteers cv
+    left join allocated_volunteers av
+        on cv.chapter_id = av.chapter_id
+       and cv.volunteer_id = av.volunteer_id
+    group by 1
+),
+
 -- Worst group per child: no section > no slot > no volunteer > covered.
 child_groups as (
     select
@@ -179,6 +240,8 @@ joined as (
         coalesce(cc.mentoring_circles_0_volunteers, 0) as mentoring_circles_0_volunteers,
         coalesce(cc.mentoring_circles_1_volunteer, 0) as mentoring_circles_1_volunteer,
         coalesce(cc.mentoring_circles_2plus_volunteers, 0) as mentoring_circles_2plus_volunteers,
+        coalesce(vc.volunteers_in_chapter, 0) as volunteers_in_chapter,
+        coalesce(vc.volunteers_allocated, 0) as volunteers_allocated,
         coalesce(cc.mentoring_circles_not_yet_due, 0) as mentoring_circles_not_yet_due,
         coalesce(cc.mentoring_circles_started, 0) as mentoring_circles_started,
         coalesce(cc.mentoring_circles_not_started, 0) as mentoring_circles_not_started,
@@ -195,6 +258,7 @@ joined as (
     left join circle_counts cc on ch.chapter_id = cc.chapter_id
     left join no_slot_circle_counts ns on ch.chapter_id = ns.chapter_id
     left join child_counts kc on ch.chapter_id = kc.chapter_id
+    left join volunteer_counts vc on ch.chapter_id = vc.chapter_id
 )
 
 select
@@ -214,6 +278,11 @@ select
     mentoring_circles_0_volunteers,
     mentoring_circles_1_volunteer,
     mentoring_circles_2plus_volunteers,
+    mentoring_circles_with_slot + mentoring_circles_no_slot as volunteers_needed,
+    volunteers_in_chapter,
+    volunteers_allocated,
+    volunteers_in_chapter - volunteers_allocated as volunteers_not_allocated,
+    mentoring_circles_0_volunteers + mentoring_circles_no_slot as mentoring_circles_needing_volunteer,
     (has_data_this_year
         and mentoring_circles_with_slot >= 1
         and mentoring_circles_no_slot = 0
@@ -231,6 +300,9 @@ select
         when mentoring_circles_no_slot > 0 then 'circles_with_no_slot'
         when mentoring_circles_0_volunteers > 0 then 'circles_without_volunteer'
     end as volunteer_requirement_not_met_reason,
+    -- Spec §3.5b: >= 1 circle with a slot has held a session in AY 2026-27 (a circle that has held
+    -- one always counts as due, so mentoring_circles_started covers it).
+    (has_data_this_year and mentoring_circles_started >= 1) as has_sessions_started,
     mentoring_circles_not_yet_due,
     mentoring_circles_started,
     mentoring_circles_not_started,

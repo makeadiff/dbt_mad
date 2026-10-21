@@ -18,8 +18,8 @@ models:
   - name: prod_do_chapter_summary
     description: >
       DO dashboard (E2) metric model, snake_case. One row per active E2 chapter for AY 2026-27:
-      Metric 1 (volunteer requirement met at 1:5 and 2:5) and child cover. See the model header
-      for the live-circle, active-child and child-cover rules.
+      Metric 1 (volunteer requirement met at 1:5 and 2:5), Metric 2 (sessions started, all
+      mentoring circles started), volunteers and child cover. See the model header for the rules.
     columns:
       - name: chapter_id
         tests:
@@ -35,6 +35,24 @@ models:
         tests:
           - not_null
       - name: sessions_commenced_met
+        tests:
+          - not_null
+      - name: has_sessions_started
+        tests:
+          - not_null
+      - name: volunteers_needed
+        tests:
+          - not_null
+      - name: volunteers_in_chapter
+        tests:
+          - not_null
+      - name: volunteers_allocated
+        tests:
+          - not_null
+      - name: volunteers_not_allocated
+        tests:
+          - not_null
+      - name: mentoring_circles_needing_volunteer
         tests:
           - not_null
 
