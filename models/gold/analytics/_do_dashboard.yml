@@ -14,6 +14,20 @@ seeds:
           - unique
           - not_null
 
+  - name: seed_do_glossary
+    description: >
+      "What the words mean" table for the DO dashboard (spec §3.6c): one plain-words definition per
+      term, in display order.
+    columns:
+      - name: term_order
+        tests:
+          - unique
+          - not_null
+      - name: term
+        tests:
+          - unique
+          - not_null
+
 models:
   - name: prod_do_chapter_summary
     description: >
@@ -166,3 +180,23 @@ models:
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
       should ref() this model. One row per week, national.
+
+  - name: prod_do_district_summary
+    description: >
+      DO dashboard (E2) district rollup, snake_case. One row per district plus an "All districts"
+      row (spec §3.6b). Every % is a ratio of sums across prod_do_chapter_summary.
+    columns:
+      - name: district
+        tests:
+          - unique
+          - not_null
+
+  - name: prod_do_district_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per district plus "All districts".
+
+  - name: prod_do_glossary_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per glossary term.

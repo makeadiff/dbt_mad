@@ -17,5 +17,5 @@ select
     volunteers_consistent                                           as "Consistent volunteers",
     pct_volunteers_consistent                                       as "% of volunteers consistent",
     volunteers_no_sessions_planned                                  as "Volunteers with no sessions planned yet",
-    case when below_target then 'Yes' else 'No' end                 as "Below 70% target"
+    case when below_target then 'Yes' else 'No' end                 as "Below 70% goal"
 from {{ ref('prod_do_volunteer_consistency') }}

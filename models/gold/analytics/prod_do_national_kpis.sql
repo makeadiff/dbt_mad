@@ -52,13 +52,17 @@ select
     mentoring_circles_not_yet_due,
     mentoring_circles_started,
     mentoring_circles_not_started,
+    mentoring_circles_started + mentoring_circles_not_started as mentoring_circles_due,
     -- Of circles that are due (not-yet-due circles are left out).
     round(100.0 * mentoring_circles_started / nullif(mentoring_circles_started + mentoring_circles_not_started, 0), 1) as pct_mentoring_circles_started,
     mentoring_circles_no_session_since_1_oct,
     sessions_held_since_1_oct,
     volunteers_needed,
+    -- 2 per mentoring circle, the 2:5 requirement (spec §3.6b).
+    2 * volunteers_needed as volunteers_needed_2to5,
     volunteers_in_chapter,
     volunteers_allocated,
+    round(100.0 * volunteers_allocated / nullif(volunteers_in_chapter, 0), 1) as pct_volunteers_placed,
     volunteers_not_allocated,
     mentoring_circles_needing_volunteer,
     active_children,
