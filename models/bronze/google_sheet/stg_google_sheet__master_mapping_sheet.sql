@@ -6,12 +6,13 @@ with raw_master_mapping_sheet as (
 select
     nullif(trim("City_Name"), '')               as city_name,
     nullif(trim("State"), '')                   as state,
-    nullif(trim("CO_ID"), '')::integer          as co_id,
+    -- ID columns are hand-typed in the sheet; non-numeric notes (e.g. "couldnt fin on PC...") become null
+    case when trim("CO_ID") ~ '^[0-9]+$' then trim("CO_ID")::integer end              as co_id,
     nullif(trim("CO_Name"), '')                 as sheet_co_name,
     nullif(trim("Chapter_ID"), '')              as chapter_id,
     nullif(trim("Chapter_Name"), '')            as chapter_name,
-    nullif(trim("Worknode_ID"), '')::integer    as worknode_id,
-    nullif(trim("CHO_ID"), '')::integer         as cho_id,
+    case when trim("Worknode_ID") ~ '^[0-9]+$' then trim("Worknode_ID")::integer end  as worknode_id,
+    case when trim("CHO_ID") ~ '^[0-9]+$' then trim("CHO_ID")::integer end            as cho_id,
     nullif(trim("CHO_Name"), '')                as sheet_cho_name,
     nullif(trim("Engine"), '')                  as engine,
     nullif(trim("Chapter_Status"), '')          as chapter_status,

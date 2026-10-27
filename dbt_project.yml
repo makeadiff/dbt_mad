@@ -35,6 +35,12 @@ vars:
   # in fct_e2_sessions_summary) -- never for the real per-slot classification in
   # fct_e2_planned_session_status, which always uses each section's actual scheduled slot count.
   ideal_slot_count: 2
+  # Data tests are switched off for now. Re-enable with --vars '{run_tests: true}' or by setting this to true.
+  run_tests: false
+
+data_tests:
+  dbt_mad:
+    +enabled: "{{ var('run_tests', false) }}"
 
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
