@@ -1,29 +1,29 @@
-school_id,chapter_name,city,owner
-29277,Government Children Home for Boys,Ahmedabad,
-29252,Samarthanam Trust,Bangalore,
-29251,"St Mary's Orphanage, Maruthi Sevanagar",Bangalore,
-29253,"St. Patrick's Boys Home, Brigade Road",Bangalore,
-29529,"Bala Mandir, Sathyamurthi School",Chennai,
-29280,Don Bosco Big Boys,Cochin,
-29531,"Sandhwanam Orphanage, Aluva East",Cochin,
-29257,Don Bosco Ukkadam,Coimbatore,
-29259,PSG Sarvajana,Coimbatore,
-29263,"Arya Bal Grih, Darya Ganj",Delhi,
-29261,"Bal Sahyog, Connaught Place",Delhi,
-29619,Netaji Subhash Chandra Bose Chatrawas,Dehradun,
-29285,"Sarada Niketan, Brodipet",Guntur,
-29265,Prakasam School Khairatabad,Hyderabad,
-29268,Rainbow Homes Medibaavi,Hyderabad,
-29269,Rainbow Homes Musheerabad,Hyderabad,
-29267,THARA Boys Home,Hyderabad,
-29274,"Pejawar Ashram, Kuppalur",Mysore,
-29565,HOH (Boys),Nagpur,
-29291,"Home of Hope, Girls",Nagpur,
-29292,"Yuvajyoti, Jaripatka",Nagpur,
-29275,"Saraswati Anath Shikshan Ashram, Dapodi",Pune,
-29524,Shree Shivaji Maratha Jijamata Girls' High School,Pune,
-29523,"St. Thomas School, Guruvar Peth",Pune,
-29293,LMS Wills Girls' Hostel,Trivandrum,
-29294,"Mahila Mandhiram, Poojapura",Trivandrum,
-29296,Navajeevan Bala Bhavan,Vijayawada,
-29297,"Vasavya Mahila Mandali, Kannuru",Vijayawada,
+school_id,chapter_name,city,district,do_name
+29277,Government Children Home for Boys,Ahmedabad,District 10,Saurabh
+29252,Samarthanam Trust,Bangalore,District 8,Paro
+29251,"St Mary's Orphanage, Maruthi Sevanagar",Bangalore,District 8,Paro
+29253,"St. Patrick's Boys Home, Brigade Road",Bangalore,District 8,Paro
+29529,"Bala Mandir, Sathyamurthi School",Chennai,District 8,Paro
+29280,Don Bosco Big Boys,Cochin,District 8,Paro
+29531,"Sandhwanam Orphanage, Aluva East",Cochin,District 8,Paro
+29257,Don Bosco Ukkadam,Coimbatore,District 8,Paro
+29259,PSG Sarvajana,Coimbatore,District 8,Paro
+29263,"Arya Bal Grih, Darya Ganj",Delhi,District 11,Afsar
+29261,"Bal Sahyog, Connaught Place",Delhi,District 11,Afsar
+29619,Netaji Subhash Chandra Bose Chatrawas,Dehradun,District 11,Afsar
+29285,"Sarada Niketan, Brodipet",Guntur,District 9,Faagun
+29265,Prakasam School Khairatabad,Hyderabad,District 9,Faagun
+29268,Rainbow Homes Medibaavi,Hyderabad,District 9,Faagun
+29269,Rainbow Homes Musheerabad,Hyderabad,District 9,Faagun
+29267,THARA Boys Home,Hyderabad,District 9,Faagun
+29274,"Pejawar Ashram, Kuppalur",Mysore,District 8,Paro
+29565,HOH (Boys),Nagpur,District 10,Saurabh
+29291,"Home of Hope, Girls",Nagpur,District 10,Saurabh
+29292,"Yuvajyoti, Jaripatka",Nagpur,District 10,Saurabh
+29275,"Saraswati Anath Shikshan Ashram, Dapodi",Pune,District 10,Saurabh
+29524,Shree Shivaji Maratha Jijamata Girls' High School,Pune,District 10,Saurabh
+29523,"St. Thomas School, Guruvar Peth",Pune,District 10,Saurabh
+29293,LMS Wills Girls' Hostel,Trivandrum,District 8,Paro
+29294,"Mahila Mandhiram, Poojapura",Trivandrum,District 8,Paro
+29296,Navajeevan Bala Bhavan,Vijayawada,District 9,Faagun
+29297,"Vasavya Mahila Mandali, Kannuru",Vijayawada,District 9,Faagun

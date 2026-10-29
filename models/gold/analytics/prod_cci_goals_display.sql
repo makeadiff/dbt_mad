@@ -1,17 +1,19 @@
 {{ config(materialized='table') }}
 
 -- Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
--- should ref() this model. The 31 Oct goals table (spec E1 §3.9): one row per group x goal, plus
--- "All" x goal (14 x 4 = 56 rows), so the Group filter narrows it and an unfiltered table opens on
--- the All rows ("Group order": All 0, then groups A-Z). Groups with no CCIs with children (Guntur)
--- are left out. Everything comes from prod_cci_group_summary, whose % columns are ratios of sums;
+-- should ref() this model. The 31 Oct goals table (spec E1 §3.9, §7 D3-D4): one row per district x
+-- goal, plus "All districts" x goal (5 x 4 = 20 rows), so the District / DO filters narrow it and an
+-- unfiltered table opens on the All districts rows ("District order": All districts 0, then
+-- 8-11). Everything comes from prod_cci_district_summary, whose % columns are ratios of sums;
 -- nothing is recalculated here. Goal 4 (consistency) waits on the weekly-slot link (spec §5, §7
 -- ruling 1): Now and Count blank. There is no baseline goal (spec §3.7).
 -- Met = Now >= Target.
 
-with groups as (
+with districts as (
     select
-        group_name,
+        district,
+        do_name,
+        case when district = 'All districts' then 0 else district_sort end as district_sort,
         ccis,
         active_children,
         children_with_volunteer,
@@ -19,39 +21,36 @@ with groups as (
         ccis_requirement_met_1to5,
         pct_ccis_requirement_met_1to5,
         ccis_all_circles_started,
-        pct_ccis_all_circles_started,
-        case when group_name = 'All' then 0
-             else row_number() over (partition by group_name = 'All' order by group_name)
-        end as group_sort
-    from {{ ref('prod_cci_group_summary') }}
-    where ccis > 0
+        pct_ccis_all_circles_started
+    from {{ ref('prod_cci_district_summary') }}
 ),
 
 goals as (
-    select group_name, group_sort, 1 as goal_order,
+    select district, do_name, district_sort, 1 as goal_order,
         '% of children who have a volunteer' as goal, 100 as target,
         children_with_volunteer::bigint as num, active_children::bigint as den,
         pct_children_with_volunteer as now_pct
-    from groups
+    from districts
     union all
-    select group_name, group_sort, 2,
+    select district, do_name, district_sort, 2,
         '% of CCIs where every mentoring circle has a volunteer', 80,
         ccis_requirement_met_1to5::bigint, ccis::bigint, pct_ccis_requirement_met_1to5
-    from groups
+    from districts
     union all
-    select group_name, group_sort, 3,
+    select district, do_name, district_sort, 3,
         '% of CCIs where every mentoring circle has started', 80,
         ccis_all_circles_started::bigint, ccis::bigint, pct_ccis_all_circles_started
-    from groups
+    from districts
     union all
-    select group_name, group_sort, 4,
+    select district, do_name, district_sort, 4,
         '% of volunteers who held 9 in 10 of their planned sessions since 1 October', 70,
         null, null, null
-    from groups
+    from districts
 )
 
 select
-    group_name                                      as "Group",
+    district                                        as "District",
+    do_name                                         as "DO",
     goal                                            as "Goal",
     goal_order                                      as "Goal order",
     target::text || '%'                             as "Target",
@@ -64,5 +63,5 @@ select
          else 'No'
     end                                             as "Met",
     '31 Oct 2026'                                   as "Due",
-    group_sort                                      as "Group order"
+    district_sort                                   as "District order"
 from goals

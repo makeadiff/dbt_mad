@@ -1,19 +1,24 @@
 {{ config(materialized='table') }}
 
--- CCI dashboard (E1) group rollup, snake_case: one row per group (spec §7 ruling 3: the seed's owner,
--- else city) plus an "All" row that is the sum of the chapters. Feeds the Overview table and goal
--- tiles (spec §3.8). Counts are summed from prod_cci_chapter_summary; every % is a ratio of sums,
--- never an average of chapter %s.
+-- CCI dashboard (E1) district rollup, snake_case: one row per district (spec E1 §7 D1-D3) plus an
+-- "All districts" row that is the sum of the chapters, because Dalgo can't total a table. Feeds the
+-- Overview table and goals table (spec §3.8, §3.9). Counts are summed from prod_cci_chapter_summary;
+-- every % is a ratio of sums, never an average of chapter %s. One DO per district
+-- (seed_cci_chapter_group), so do_name rides along; the All districts row has none.
+-- district_sort is the district number (8-11), with All districts last (12), as
+-- prod_do_district_summary does ("All districts" would sort first by name).
 --
 -- "CCIs" counts only CCIs with children this year (27, not 28), so the CCI percentages use the same
--- denominator as the spec's national figures. A group whose only CCI has no children (Guntur) shows
--- 0 CCIs and 0 children, so the groups still add up to the All row.
+-- denominator as the spec's national figures. Sarada Niketan (no children) sits in District 9 and
+-- adds no children.
 --
--- Grain: one row per group_name, plus 'All'.
+-- Grain: one row per district, plus 'All districts'.
 
 with grouped as (
     select
-        group_name,
+        district,
+        do_name,
+        substring(district from '[0-9]+')::int as district_sort,
         count(*) filter (where has_children) as ccis,
         sum(active_children) as active_children,
         sum(children_with_volunteer) as children_with_volunteer,
@@ -39,15 +44,16 @@ with grouped as (
         count(*) filter (where all_circles_started) as ccis_all_circles_started,
         sum(sessions_held_since_1_oct) as sessions_held_since_1_oct
     from {{ ref('prod_cci_chapter_summary') }}
-    group by 1
+    group by 1, 2
 ),
 
 with_all as (
-    select 1 as sort_order, g.* from grouped g
+    select g.* from grouped g
     union all
     select
-        2 as sort_order,
-        'All' as group_name,
+        'All districts',
+        null,
+        12,
         sum(ccis), sum(active_children), sum(children_with_volunteer), sum(children_not_in_circle),
         sum(children_in_circle_no_volunteer), sum(children_foundations), sum(children_education_support),
         sum(children_transition_readiness), sum(children_programme_not_set), sum(sections_no_circle),

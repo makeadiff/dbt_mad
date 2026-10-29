@@ -9,7 +9,8 @@
 select
     chapter_name                                    as "Chapter",
     city                                            as "City",
-    group_name                                      as "Group",
+    district                                        as "District",
+    do_name                                         as "DO",
     -- Children
     active_children                                 as "Active children",
     children_foundations                            as "Foundations children",

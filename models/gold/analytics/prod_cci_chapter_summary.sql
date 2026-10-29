@@ -5,7 +5,7 @@
 -- prod_cci_active_children and prod_cci_mentoring_circles; the Dalgo-facing names are in
 -- prod_cci_chapters_display. Rules: spec E1 §3.0-§3.4.
 --
--- Group: the seed's owner when filled, else its city (spec §7 ruling 3).
+-- District and DO: from seed_cci_chapter_group (spec E1 §7 D1, the DO sheet's Chapter mapping tab).
 -- Child status, worst first (§3.2): "not yet in a mentoring circle" (one of their sections has no
 -- circle) -> "in a circle with no volunteer" (a circle on their sections has none) -> with a volunteer.
 -- Volunteer requirement met (§3.1): at least 1 circle, every circle has a volunteer, no section with
@@ -23,7 +23,8 @@ with chapters as (
         school_id::text as chapter_id,
         chapter_name,
         city,
-        coalesce(nullif(trim(owner), ''), city) as group_name
+        district,
+        do_name
     from {{ ref('seed_cci_chapter_group') }}
 ),
 
@@ -123,7 +124,8 @@ base as (
         ch.chapter_id,
         ch.chapter_name,
         ch.city,
-        ch.group_name,
+        ch.district,
+        ch.do_name,
         coalesce(cc.active_children, 0) as active_children,
         coalesce(cc.children_with_volunteer, 0) as children_with_volunteer,
         coalesce(cc.children_not_in_circle, 0) as children_not_in_circle,
