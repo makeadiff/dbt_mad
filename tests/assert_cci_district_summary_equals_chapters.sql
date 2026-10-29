@@ -1,4 +1,4 @@
--- The groups add up to the chapters, and the "All" row equals the sum of the chapters on every
+-- The districts add up to the chapters, and the "All districts" row equals the sum of the chapters on every
 -- count (spec E1 §2, §3.8). Returns a row only when something differs.
 with chapters as (
     select
@@ -12,7 +12,7 @@ with chapters as (
     from {{ ref('prod_cci_chapter_summary') }}
 ),
 
-groups as (
+districts as (
     select
         sum(active_children) as active_children,
         sum(children_with_volunteer) as children_with_volunteer,
@@ -21,18 +21,18 @@ groups as (
         sum(circles_started) as circles_started,
         sum(sessions_held_since_1_oct) as sessions_held_since_1_oct,
         sum(ccis_requirement_met_1to5) as ccis_requirement_met_1to5
-    from {{ ref('prod_cci_group_summary') }}
-    where group_name <> 'All'
+    from {{ ref('prod_cci_district_summary') }}
+    where district <> 'All districts'
 ),
 
 all_row as (
-    select * from {{ ref('prod_cci_group_summary') }}
-    where group_name = 'All'
+    select * from {{ ref('prod_cci_district_summary') }}
+    where district = 'All districts'
 )
 
-select a.group_name
+select a.district
 from all_row a
-cross join groups g
+cross join districts g
 cross join chapters c
 where a.active_children <> c.active_children or g.active_children <> c.active_children
    or a.children_with_volunteer <> c.children_with_volunteer or g.children_with_volunteer <> c.children_with_volunteer

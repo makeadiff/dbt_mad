@@ -3,19 +3,26 @@ version: 2
 seeds:
   - name: seed_cci_chapter_group
     description: >
-      CCI -> city -> owner list for the CCI dashboard (E1), one row per Platform Commons school with a
-      2026-27 section (28, Test School excluded). City from dim_pc_school, with the 5 missing filled by
-      name. Owner is empty until Akshay supplies names; the dashboard groups by city until then.
+      CCI -> city -> district -> DO list for the CCI dashboard (E1), one row per Platform Commons school
+      with a 2026-27 section (28, Test School excluded). City from dim_pc_school, with the 5 missing
+      filled by name. District (8-11) and DO from the DO sheet's Chapter mapping tab (spec §7 D1).
     config:
       column_types:
         school_id: text
         chapter_name: text
         city: text
-        owner: text
+        district: text
+        do_name: text
     columns:
       - name: school_id
         tests:
           - unique
+          - not_null
+      - name: district
+        tests:
+          - not_null
+      - name: do_name
+        tests:
           - not_null
 
 models:
@@ -79,12 +86,12 @@ models:
         tests:
           - not_null
 
-  - name: prod_cci_group_summary
+  - name: prod_cci_district_summary
     description: >
-      CCI dashboard (E1) group rollup, snake_case. One row per group plus an "All" row. Every % is a
-      ratio of sums across prod_cci_chapter_summary.
+      CCI dashboard (E1) district rollup, snake_case. One row per district plus an "All districts" row
+      (DO blank). Every % is a ratio of sums across prod_cci_chapter_summary.
     columns:
-      - name: group_name
+      - name: district
         tests:
           - unique
           - not_null
@@ -105,10 +112,10 @@ models:
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
       should ref() this model. One row per CCI.
 
-  - name: prod_cci_group_display
+  - name: prod_cci_district_display
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
-      should ref() this model. One row per group plus "All".
+      should ref() this model. One row per district plus "All districts".
 
   - name: prod_cci_weekly_sessions_display
     description: >
@@ -124,5 +131,5 @@ models:
   - name: prod_cci_goals_display
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
-      should ref() this model. The 31 Oct goals table: one row per group x goal plus "All" x goal
-      (56 rows), from prod_cci_group_summary.
+      should ref() this model. The 31 Oct goals table: one row per district x goal plus "All districts" x goal
+      (20 rows), from prod_cci_district_summary.

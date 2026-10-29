@@ -7,7 +7,8 @@
 select
     chapter_name    as "Chapter",
     city            as "City",
-    group_name      as "Group",
+    district        as "District",
+    do_name         as "DO",
     week_label      as "Week",
     week_start      as "Week starting",
     sessions_held   as "Sessions held"

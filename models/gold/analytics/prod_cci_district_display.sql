@@ -1,11 +1,13 @@
 {{ config(materialized='table') }}
 
 -- Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
--- should ref() this model. One row per group plus an "All" row, sourced from prod_cci_group_summary
--- (spec E1 §3.8). The goal tiles read the "All" row; every % is a ratio of sums.
+-- should ref() this model. One row per district plus an "All districts" row, sourced from
+-- prod_cci_district_summary (spec E1 §3.8, §7 D3). Each % follows its count and is a ratio of sums.
+-- "District order" puts All districts last: the Dalgo table sorts on it and hides it.
 
 select
-    group_name                                      as "Group",
+    district                                        as "District",
+    do_name                                         as "DO",
     ccis                                            as "CCIs",
     active_children                                 as "Active children",
     children_foundations                            as "Foundations children",
@@ -30,5 +32,6 @@ select
     pct_ccis_sessions_started                       as "% of CCIs with sessions started",
     ccis_all_circles_started                        as "CCIs with every mentoring circle started",
     pct_ccis_all_circles_started                    as "% of CCIs with every mentoring circle started",
-    sessions_held_since_1_oct                       as "Sessions held since 1 October"
-from {{ ref('prod_cci_group_summary') }}
+    sessions_held_since_1_oct                       as "Sessions held since 1 October",
+    district_sort                                   as "District order"
+from {{ ref('prod_cci_district_summary') }}

@@ -40,7 +40,8 @@ select
     s.chapter_id,
     s.chapter_name,
     s.city,
-    s.group_name,
+    s.district,
+    s.do_name,
     wk.week_start,
     wk.week_label,
     coalesce(pw.sessions_held, 0) as sessions_held
