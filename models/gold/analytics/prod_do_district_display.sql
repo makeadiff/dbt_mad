@@ -20,5 +20,9 @@ select
     pct_chapters_met_1to5           as "% of chapters where every mentoring circle has a volunteer",
     mentoring_circles_started       as "Mentoring circles started",
     pct_mentoring_circles_started   as "% of mentoring circles started",
+    sessions_planned                as "Sessions planned since 1 October",
+    sessions_held                   as "Sessions held since 1 October",
+    sessions_no_attendance          as "Sessions with no attendance logged since 1 October",
+    pct_sessions_held               as "% of planned sessions held since 1 October",
     district_sort                   as "District order"
 from {{ ref('prod_do_district_summary') }}

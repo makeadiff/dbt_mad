@@ -16,6 +16,7 @@ select
     sessions_planned                as "Sessions planned",
     sessions_lost_to_late_starts    as "Sessions lost to late starts",
     sessions_held                   as "Sessions held",
+    sessions_planned - sessions_held as "Sessions with no attendance logged",
     sessions_held_by_substitute     as "Sessions held by a substitute",
     pct_sessions_held               as "% of planned sessions held"
 from {{ ref('prod_do_weekly_sessions') }}
