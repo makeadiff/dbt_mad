@@ -6,10 +6,24 @@
 -- has none. district_sort puts the districts in number order and All districts last (8), since
 -- "All districts" would sort first by name. Baseline columns come with Metric 4.
 --
+-- Sessions planned / held are circle-sessions from 1 Oct to today (spec §3.3b, §3.6d), summed from
+-- prod_do_weekly_sessions; no attendance logged = planned - held.
+--
 -- Grain: one row per district, plus one 'All districts' row.
 
-with chapters as (
-    select * from {{ ref('prod_do_chapter_summary') }}
+with chapter_sessions as (
+    select
+        chapter_id,
+        sum(sessions_planned)::bigint as sessions_planned,
+        sum(sessions_held)::bigint as sessions_held
+    from {{ ref('prod_do_weekly_sessions') }}
+    group by 1
+),
+
+chapters as (
+    select s.*, coalesce(w.sessions_planned, 0) as sessions_planned, coalesce(w.sessions_held, 0) as sessions_held
+    from {{ ref('prod_do_chapter_summary') }} s
+    left join chapter_sessions w on s.chapter_id = w.chapter_id
 ),
 
 rolled as (
@@ -25,7 +39,9 @@ rolled as (
         sum(volunteers_allocated)::bigint as volunteers_allocated,
         count(*) filter (where volunteer_requirement_met_1to5) as chapters_met_1to5,
         sum(mentoring_circles_started)::bigint as mentoring_circles_started,
-        sum(mentoring_circles_started + mentoring_circles_not_started)::bigint as mentoring_circles_due
+        sum(mentoring_circles_started + mentoring_circles_not_started)::bigint as mentoring_circles_due,
+        sum(sessions_planned)::bigint as sessions_planned,
+        sum(sessions_held)::bigint as sessions_held
     from chapters
     group by 1, 2
 
@@ -43,7 +59,9 @@ rolled as (
         sum(volunteers_allocated)::bigint,
         count(*) filter (where volunteer_requirement_met_1to5),
         sum(mentoring_circles_started)::bigint,
-        sum(mentoring_circles_started + mentoring_circles_not_started)::bigint
+        sum(mentoring_circles_started + mentoring_circles_not_started)::bigint,
+        sum(sessions_planned)::bigint,
+        sum(sessions_held)::bigint
     from chapters
 )
 
@@ -63,5 +81,9 @@ select
     round(100.0 * chapters_met_1to5 / nullif(chapters, 0), 1) as pct_chapters_met_1to5,
     mentoring_circles_started,
     mentoring_circles_due,
-    round(100.0 * mentoring_circles_started / nullif(mentoring_circles_due, 0), 1) as pct_mentoring_circles_started
+    round(100.0 * mentoring_circles_started / nullif(mentoring_circles_due, 0), 1) as pct_mentoring_circles_started,
+    sessions_planned,
+    sessions_held,
+    sessions_planned - sessions_held as sessions_no_attendance,
+    round(100.0 * sessions_held / nullif(sessions_planned, 0), 1) as pct_sessions_held
 from rolled
