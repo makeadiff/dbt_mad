@@ -1,0 +1,122 @@
+version: 2
+
+seeds:
+  - name: seed_cci_chapter_group
+    description: >
+      CCI -> city -> owner list for the CCI dashboard (E1), one row per Platform Commons school with a
+      2026-27 section (28, Test School excluded). City from dim_pc_school, with the 5 missing filled by
+      name. Owner is empty until Akshay supplies names; the dashboard groups by city until then.
+    config:
+      column_types:
+        school_id: text
+        chapter_name: text
+        city: text
+        owner: text
+    columns:
+      - name: school_id
+        tests:
+          - unique
+          - not_null
+
+models:
+  - name: prod_cci_active_children
+    description: >
+      CCI dashboard (E1) base: one row per active child per 2026-27 section, with the section's
+      programme. Not read by Dalgo.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - student_id
+              - sc_level_batch_id
+
+  - name: prod_cci_session_dates
+    description: >
+      CCI dashboard (E1) base: dates each slot shift held a session since 1 June 2026. Not read by Dalgo.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - worknode_slot_shift_id
+              - session_date
+
+  - name: prod_cci_mentoring_circles
+    description: >
+      CCI dashboard (E1) base: one row per mentoring circle (active slot shift on a 2026-27 section
+      with active children). Not read by Dalgo.
+    columns:
+      - name: worknode_slot_shift_id
+        tests:
+          - unique
+          - not_null
+      - name: volunteers
+        tests:
+          - not_null
+
+  - name: prod_cci_chapter_summary
+    description: >
+      CCI dashboard (E1) metric model, snake_case. One row per CCI for AY 2026-27 (28, including one
+      with no children): volunteer requirement met, children with a volunteer, volunteers needed and
+      placed, circles started, sessions held since 1 October. See the model header for the rules.
+    columns:
+      - name: chapter_id
+        tests:
+          - unique
+          - not_null
+      - name: active_children
+        tests:
+          - not_null
+      - name: volunteer_requirement_met_1to5
+        tests:
+          - not_null
+      - name: volunteer_requirement_met_2to5
+        tests:
+          - not_null
+      - name: has_sessions_started
+        tests:
+          - not_null
+      - name: all_circles_started
+        tests:
+          - not_null
+
+  - name: prod_cci_group_summary
+    description: >
+      CCI dashboard (E1) group rollup, snake_case. One row per group plus an "All" row. Every % is a
+      ratio of sums across prod_cci_chapter_summary.
+    columns:
+      - name: group_name
+        tests:
+          - unique
+          - not_null
+
+  - name: prod_cci_weekly_sessions
+    description: >
+      CCI dashboard (E1) weekly sessions held, one row per CCI per week (Monday start) from the week
+      of 28 Sep, counting from 2026-10-01.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - week_start
+
+  - name: prod_cci_chapters_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per CCI.
+
+  - name: prod_cci_group_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per group plus "All".
+
+  - name: prod_cci_weekly_sessions_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per CCI per week.
+
+  - name: prod_cci_data_freshness_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row: when Platform Commons last synced, and the share of mentoring
+      circles with a weekly slot linked.
