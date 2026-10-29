@@ -202,6 +202,12 @@ models:
       should ref() this model. One row: when attendance (DOTS) and volunteers / children (Bubble)
       last synced.
 
+  - name: prod_do_goals_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. The 31 Oct goals table: one row per district x goal, plus All
+      districts (40 rows).
+
   - name: prod_do_glossary_display
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
