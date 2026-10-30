@@ -13,6 +13,8 @@
 -- Volunteers needed: minimum = children / 5 rounded up per CCI; as set up = 1 per circle + 1 per
 -- section with no circle. 2:5 is children x 2 / 5 rounded up, and double the as-set-up figure.
 -- Volunteers placed: distinct volunteers on the CCI's circles; the national figure sums the CCIs.
+-- Stopped logging (§3.11): a circle with a session held before 1 Oct and none since, from
+-- prod_cci_session_dates. Needing a volunteer (§3.11): circles with no volunteer + sections with no circle.
 -- Started (§3.4): a circle with a session held since 1 June. Nothing here uses the weekly slot (§7
 -- ruling 1) and there is no baseline (§3.7).
 --
@@ -112,6 +114,22 @@ circle_counts as (
     group by 1
 ),
 
+stopped as (
+    select
+        c.chapter_id,
+        count(*) as circles_stopped_logging
+    from {{ ref('prod_cci_mentoring_circles') }} c
+    where exists (
+            select 1 from {{ ref('prod_cci_session_dates') }} d
+            where d.worknode_slot_shift_id = c.worknode_slot_shift_id
+              and d.session_date < date '2026-10-01')
+      and not exists (
+            select 1 from {{ ref('prod_cci_session_dates') }} d
+            where d.worknode_slot_shift_id = c.worknode_slot_shift_id
+              and d.session_date >= date '2026-10-01')
+    group by 1
+),
+
 placed as (
     select chapter_id, count(distinct u) as volunteers_placed
     from {{ ref('prod_cci_mentoring_circles') }}
@@ -143,13 +161,15 @@ base as (
         coalesce(k.circles_started, 0) as circles_started,
         coalesce(k.sessions_held_since_1_oct, 0) as sessions_held_since_1_oct,
         coalesce(k.circles_with_weekly_slot, 0) as circles_with_weekly_slot,
-        coalesce(p.volunteers_placed, 0) as volunteers_placed
+        coalesce(p.volunteers_placed, 0) as volunteers_placed,
+        coalesce(st.circles_stopped_logging, 0) as circles_stopped_logging
     from chapters ch
     left join child_counts cc on ch.chapter_id = cc.chapter_id
     left join programme_counts pc on ch.chapter_id = pc.chapter_id
     left join sections s on ch.chapter_id = s.chapter_id
     left join circle_counts k on ch.chapter_id = k.chapter_id
     left join placed p on ch.chapter_id = p.chapter_id
+    left join stopped st on ch.chapter_id = st.chapter_id
 )
 
 select
@@ -160,6 +180,8 @@ select
     ceil(b.active_children / 5.0)::int as volunteers_needed_min_1to5,
     ceil(b.active_children * 2 / 5.0)::int as volunteers_needed_min_2to5,
     b.mentoring_circles + b.sections_no_circle as volunteers_needed_as_set_up_1to5,
+    b.circles_no_volunteer + b.sections_no_circle as circles_needing_volunteer,
+    b.mentoring_circles - b.circles_started as circles_not_started,
     2 * (b.mentoring_circles + b.sections_no_circle) as volunteers_needed_as_set_up_2to5,
     -- Metric 1: volunteer requirement met (§3.1)
     (b.active_children > 0 and b.mentoring_circles >= 1 and b.circles_no_volunteer = 0 and b.sections_no_circle = 0)
