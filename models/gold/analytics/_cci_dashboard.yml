@@ -133,3 +133,87 @@ models:
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
       should ref() this model. The 31 Oct goals table: one row per district x goal plus "All districts" x goal
       (20 rows), from prod_cci_district_summary.
+
+  - name: prod_cci_circle_sessions
+    description: >
+      CCI dashboard (E1) base: every session held by a mentoring circle since 1 June 2026, with who held it and its hours (spec §3.10). Not read by Dalgo.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - worknode_slot_shift_id
+              - session_date
+
+  - name: prod_cci_cancellations
+    description: >
+      CCI dashboard (E1) sessions cancelled from 1 October 2026, one row per circle per date (spec §3.10). Empty until Platform Commons logs a 2026-27 cancellation.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - worknode_slot_shift_id
+              - session_date
+
+  - name: prod_cci_session_breakdown
+    description: >
+      CCI dashboard (E1) sessions held by the original volunteer vs a substitute, and cancelled, one row per CCI per week (spec §3.10).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - week_start
+
+  - name: prod_cci_cancellation_reasons
+    description: >
+      CCI dashboard (E1) cancelled sessions by reason, one row per CCI per reason; coded reasons read Reason code N (spec §3.10).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - cancel_reason
+
+  - name: prod_cci_volunteer_sessions
+    description: >
+      CCI dashboard (E1) volunteer table without planned or consistency columns, one row per volunteer per CCI per period (spec §3.10).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - volunteer_id
+              - period_type
+              - period_start
+
+  - name: prod_cci_child_sessions
+    description: >
+      CCI dashboard (E1) child table, one row per child per CCI per period; first name and child ID only (spec §3.10).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - child_id
+              - period_type
+              - period_start
+
+  - name: prod_cci_session_breakdown_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per CCI per week.
+
+  - name: prod_cci_cancellation_reasons_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per CCI per cancellation reason.
+
+  - name: prod_cci_volunteer_sessions_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per volunteer per CCI per period.
+
+  - name: prod_cci_child_sessions_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per child per CCI per period.
