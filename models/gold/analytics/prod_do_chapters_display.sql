@@ -65,7 +65,7 @@ select
     s.pct_mentoring_circles_started                                     as "% of mentoring circles started",
     s.mentoring_circles_not_yet_due                                     as "Mentoring circles with first session still ahead",
     s.mentoring_circles_not_started                                     as "Mentoring circles not started",
-    s.mentoring_circles_no_session_since_1_oct                          as "Mentoring circles with sessions in September, none since 1 Oct",
+    s.mentoring_circles_no_session_since_1_oct                          as "Mentoring circles with sessions before 1 October, none since",
     coalesce(w.sessions_planned, 0)                                     as "Sessions planned since 1 October",
     coalesce(w.sessions_held, 0)                                        as "Sessions held since 1 October",
     coalesce(w.sessions_planned, 0) - coalesce(w.sessions_held, 0)      as "Sessions with no attendance logged since 1 October",

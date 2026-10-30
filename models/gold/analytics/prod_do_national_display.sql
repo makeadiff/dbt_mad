@@ -33,7 +33,7 @@ select
     pct_chapters_sessions_commenced as "% of chapters where every mentoring circle has started",
     target_pct_sessions_commenced   as "Target % of chapters where every mentoring circle has started",
     mentoring_circles_not_yet_due   as "Mentoring circles with first session still ahead",
-    mentoring_circles_no_session_since_1_oct as "Mentoring circles with sessions in September, none since 1 Oct",
+    mentoring_circles_no_session_since_1_oct as "Mentoring circles with sessions before 1 October, none since",
     sessions_held_since_1_oct       as "Sessions held since 1 October",
     volunteers_not_allocated        as "Volunteers signed up but not placed",
     mentoring_circles_needing_volunteer as "Mentoring circles still needing a volunteer"
