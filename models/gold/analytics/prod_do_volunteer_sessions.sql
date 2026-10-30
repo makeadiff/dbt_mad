@@ -13,9 +13,11 @@ with periods as (
     {{ session_periods() }}
 ),
 
+-- The volunteer's name comes from their Bubble user record (the volunteer_id the allocation points
+-- to), not from attendance, which only names volunteers who have a record.
 names as (
-    select volunteer_id, max(volunteer_name) as volunteer_name
-    from {{ ref('fct_e2_volunteer_attendance_by_slot_date') }}
+    select volunteer_id, max(nullif(trim(user_display_name), '')) as volunteer_name
+    from {{ ref('int_bubble__user') }}
     group by 1
 ),
 

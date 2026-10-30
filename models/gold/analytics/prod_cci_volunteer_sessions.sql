@@ -17,7 +17,7 @@ taken as (
     select distinct
         c.chapter_id,
         a.tagged_volunteer_id as volunteer_id,
-        a.volunteer_name,
+        a.tagged_volunteer_user_id as volunteer_user_id,
         a.section_slot_shift_id as worknode_slot_shift_id,
         a.scheduled_session_date::date as session_date
     from {{ ref('int_pc_volunteer_attendance') }} a
@@ -28,8 +28,16 @@ taken as (
       and a.scheduled_session_date::date >= date '2026-10-01'
 ),
 
+-- The volunteer's name comes from their Platform Commons user record (the person the volunteer maps
+-- to), not from the attendance record.
 names as (
-    select volunteer_id, max(volunteer_name) as volunteer_name from taken group by 1
+    select
+        t.volunteer_id,
+        max(nullif(trim(u.first_name || ' ' || coalesce(u.last_name, '')), '')) as volunteer_name
+    from (select distinct volunteer_id, volunteer_user_id from taken) t
+    left join {{ ref('stg_pc_user') }} u
+        on t.volunteer_user_id = u.user_id
+    group by 1
 ),
 
 per_person as (
