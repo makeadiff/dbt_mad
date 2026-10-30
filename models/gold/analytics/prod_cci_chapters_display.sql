@@ -25,6 +25,9 @@ select
     sections_no_circle                              as "Sections with no mentoring circle",
     mentoring_circles                               as "Mentoring circles",
     circles_no_volunteer                            as "Mentoring circles with no volunteer",
+    circles_needing_volunteer                       as "Mentoring circles still needing a volunteer",
+    circles_one_volunteer                           as "Mentoring circles with 1 volunteer",
+    circles_two_plus_volunteers                     as "Mentoring circles with 2 or more volunteers",
     -- Volunteers
     volunteers_needed_min_1to5                      as "Volunteers needed (minimum, 1:5)",
     volunteers_needed_as_set_up_1to5                as "Volunteers needed (as set up, 1:5)",
@@ -45,5 +48,7 @@ select
                                                     as "Every mentoring circle started",
     coalesce(not_all_circles_started_reason, 'Every circle started')
                                                     as "Why not every mentoring circle started",
+    circles_not_started                             as "Mentoring circles not started",
+    circles_stopped_logging                         as "Mentoring circles with sessions before 1 October, none since",
     sessions_held_since_1_oct                       as "Sessions held since 1 October"
 from {{ ref('prod_cci_chapter_summary') }}
