@@ -12,6 +12,10 @@
 -- sessions. "Sessions held since 1 October" sums
 -- prod_do_weekly_sessions (circle-sessions, §3.3b counting); it joins here rather than in the
 -- summary because the weekly model already refs the summary.
+-- Layout v4 (spec §3.8, 2026-11-11): "Setup complete", "Minimum volunteers to start sessions" and
+-- the leads columns are new; volunteer names changed (needed one per mentoring circle, recruited,
+-- assigned to a class section); the 2:5 column is dropped. "Leads in this city" is a city total
+-- repeated on every chapter in the city: a table column, never summed in a tile.
 
 with sessions_since_1_oct as (
     select
@@ -35,22 +39,25 @@ select
     s.children_in_circle_no_volunteer                                   as "Children in a mentoring circle with no volunteer",
     s.children_in_circle_no_slot                                        as "Children in a mentoring circle with no weekly slot",
     s.children_in_no_class_section                                      as "Children not yet in a mentoring circle",
+    case when s.setup_complete then 'Yes' else 'No' end                 as "Setup complete",
     -- Mentoring circles and slots
     s.total_slots                                                       as "Weekly session slots",
     s.mentoring_circles_total                                           as "Mentoring circles",
     s.mentoring_circles_with_slot                                       as "Mentoring circles with a weekly slot",
     s.mentoring_circles_no_slot                                         as "Mentoring circles with no weekly slot",
     -- Volunteers
-    s.volunteers_needed                                                 as "Volunteers needed (1:5)",
-    s.volunteers_in_chapter                                             as "Volunteers signed up",
-    s.volunteers_allocated                                              as "Volunteers placed in a mentoring circle",
-    s.volunteers_not_allocated                                          as "Volunteers signed up but not placed",
+    s.volunteers_minimum_to_start                                       as "Minimum volunteers to start sessions",
+    s.volunteers_needed                                                 as "Volunteers needed, one per mentoring circle",
+    s.volunteers_in_chapter                                             as "Volunteers recruited",
+    s.volunteers_allocated                                              as "Volunteers assigned to a class section",
+    s.volunteers_not_allocated                                          as "Volunteers recruited but not assigned to a class section",
+    s.leads_chapter_link                                                as "Leads from this chapter's link",
+    s.leads_city                                                        as "Leads in this city",
     s.mentoring_circles_needing_volunteer                               as "Mentoring circles still needing a volunteer",
     s.mentoring_circles_0_volunteers                                    as "Mentoring circles with no volunteer",
     s.mentoring_circles_1_volunteer                                     as "Mentoring circles with 1 volunteer",
     s.mentoring_circles_2plus_volunteers                                as "Mentoring circles with 2 or more volunteers",
     case when s.volunteer_requirement_met_1to5 then 'Yes' else 'No' end as "Every mentoring circle has a volunteer (1:5)",
-    case when s.volunteer_requirement_met_2to5 then 'Yes' else 'No' end as "Every mentoring circle has 2 volunteers (2:5)",
     case s.volunteer_requirement_not_met_reason
         when 'no_data' then 'No data this year'
         when 'no_slots' then 'No slots set up'
@@ -68,7 +75,7 @@ select
     s.mentoring_circles_no_session_since_1_oct                          as "Mentoring circles with sessions before 1 October, none since",
     coalesce(w.sessions_planned, 0)                                     as "Sessions planned since 1 October",
     coalesce(w.sessions_held, 0)                                        as "Sessions held since 1 October",
-    coalesce(w.sessions_planned, 0) - coalesce(w.sessions_held, 0)      as "Sessions with no attendance logged since 1 October",
+    coalesce(w.sessions_planned, 0) - coalesce(w.sessions_held, 0)      as "Sessions not held since 1 October",
     round(100.0 * w.sessions_held / nullif(w.sessions_planned, 0), 1)   as "% of planned sessions held since 1 October",
     case s.sessions_commenced_not_met_reason
         when 'no_data' then 'No data this year'
