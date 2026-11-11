@@ -7,6 +7,8 @@
 --   - keeps allocations tied to removed slots/children (legacy didn't filter those out)
 --   - excludes allocations tied to removed partners (legacy did filter that out)
 --   - requires a matching Platform Commons user record (legacy used an inner join)
+--   - the class link (school class -> class) is optional: mentoring circles can exist without a
+--     class (decided 11 Nov 2026), so those rows keep every other column and class_name is NULL
 
 SELECT
     scsv.volunteer_sk,
@@ -46,9 +48,9 @@ JOIN {{ ref('int_pc_user_data') }} ud
     ON scsv.volunteer_id::numeric = ud."UserId"::numeric
 JOIN {{ ref('int_bubble__slot') }} sl
     ON scs.slot_id = sl.slot_id
-JOIN {{ ref('int_bubble__school_class') }} sc
+LEFT JOIN {{ ref('int_bubble__school_class') }} sc
     ON cs.school_class_id = sc.school_class_id
-JOIN {{ ref('stg_bubble__class') }} c
+LEFT JOIN {{ ref('stg_bubble__class') }} c
     ON sc.class_id = c.class_id
 JOIN {{ ref('int_bubble__class_section_subject') }} css
     ON scs.class_section_subject_id = css.class_section_subject_id
