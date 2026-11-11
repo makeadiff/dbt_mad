@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: int_dots__baseline_submissions
+    description: >
+      One row per DOTS assessment submission across the numeracy, literacy and life skills forms,
+      with child, mentoring circle and volunteer IDs unpacked from the child-picker field. Every
+      round and status is kept; life skills rows carry no IDs because that raw feed has no form data.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - form
+              - record_id
+    columns:
+      - name: record_id
+        tests:
+          - not_null
+      - name: form
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['numeracy', 'literacy', 'life_skills']
+
+  - name: int_dots__baseline_answers
+    description: >
+      One row per submission per form field for the numeracy and literacy forms: every answer as
+      landed, with names left out. Join to int_dots__baseline_submissions on (form, record_id).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - form
+              - record_id
+              - field_key
+    columns:
+      - name: record_id
+        tests:
+          - not_null
