@@ -69,6 +69,22 @@ models:
       - name: mentoring_circles_needing_volunteer
         tests:
           - not_null
+      - name: setup_complete
+        description: Every active child is in a mentoring circle with a weekly slot (spec §3.8).
+        tests:
+          - not_null
+      - name: volunteers_minimum_to_start
+        description: ceil(active children / 5) (spec §3.8).
+        tests:
+          - not_null
+      - name: leads_chapter_link
+        description: Applied, not hired, attributed to this chapter's sourcing link (SRI spec §12).
+        tests:
+          - not_null
+      - name: leads_city
+        description: City-attributed leads in the chapter's city; repeated per chapter, never summed.
+        tests:
+          - not_null
 
   - name: prod_do_national_kpis
     description: >
@@ -152,8 +168,9 @@ models:
 
   - name: prod_do_weekly_sessions
     description: >
-      DO dashboard (E2) weekly sessions, ideal / planned / held per mentoring circle, snake_case.
-      One row per chapter per week (Monday start) from the week of 28 Sep, counting from 2026-10-01.
+      DO dashboard (E2) weekly sessions, planned / held per mentoring circle, snake_case. One row
+      per chapter per week (Monday start) from the week of 28 Sep, counting from 2026-10-01, with
+      the month holding the week's Thursday for a month filter (spec §3.3b, §3.8).
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -215,7 +232,9 @@ models:
 
   - name: prod_do_circle_sessions
     description: >
-      DO dashboard (E2) base: every planned circle-date from 1 October 2026, cancelled kept in, each in one of five groups (spec §3.7 R2). Not read by Dalgo.
+      DO dashboard (E2) base: every planned circle-date from 1 October 2026 for every circle with a
+      slot, cancelled kept in, each in one group: cancelled, held by original, held by substitute,
+      volunteer absent, no volunteer assigned (spec §3.7 R2, §3.8 rulings 1 and 2). Not read by Dalgo.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -226,7 +245,9 @@ models:
 
   - name: prod_do_session_breakdown
     description: >
-      DO dashboard (E2) planned sessions in five groups, one row per chapter per week (spec §3.7 R2).
+      DO dashboard (E2) planned sessions in groups (held, cancelled, volunteer absent, no volunteer
+      assigned; held split into original and substitute), one row per chapter per week with a month
+      column (spec §3.7 R2, §3.8 ruling 1).
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

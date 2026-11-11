@@ -36,6 +36,25 @@
 -- the chapter, so in the chapter >= allocated always. Checked against the frontend at 427 / 604 /
 -- 554 (427 is +1: Kajal Na, the Checkpoint 0 gap).
 --
+-- Setup complete (spec §3.8): every active child is in a mentoring circle and that circle has a
+-- weekly slot, i.e. children_in_no_class_section = 0 and children_in_circle_no_slot = 0, at a
+-- chapter with data this year. A chapter drops out when a child is removed from a circle; accepted.
+--
+-- Minimum volunteers to start sessions (spec §3.8) = ceil(active children / 5), one volunteer per
+-- five children. Needed (one per mentoring circle) measures a different thing, so minimum may exceed
+-- needed at a chapter with large circles; reported, not tested.
+--
+-- Leads (spec §3.8, SRI spec §12): this year's Platform Commons applicants who applied and aren't
+-- hired (fct_volunteer_pipeline is_applied and not is_recruited_new, 26-27 cohort). Per chapter only
+-- lead_attribution = 'chapter' is attributable (leads_chapter_link, the same rule as
+-- prod_sric_dashboard_data.leads_applied_via_link). leads_city is the count of 'city' leads in the
+-- chapter's city, repeated on every chapter in that city, so it must never be summed across
+-- chapters. Platform Commons city names are mapped to the sheet's: spelling (Bangalore = Bengaluru
+-- Urban, Cochin = Ernakulam, Trivandrum = Thiruvananthapuram, Mysore = Mysuru) and PC cities that
+-- cover more than one sheet city (Ahmedabad also serves Gandhinagar; Gurugram serves Central Delhi
+-- and South East Delhi: those chapters' own link applicants are filed under those PC cities,
+-- checked 2026-11-11). The national open pool lives on prod_do_national_kpis.
+--
 -- District and DO come from seed_do_chapter_district (a temporary seed from the DO dashboard
 -- sheet, until district lands in a mapping source).
 --
@@ -222,6 +241,47 @@ child_counts as (
     group by 1
 ),
 
+leads as (
+    select volunteer_id, lead_attribution, chapter_id::text as chapter_id, city
+    from {{ ref('fct_volunteer_pipeline') }}
+    where is_applied and not is_recruited_new
+),
+
+leads_by_chapter as (
+    select chapter_id, count(distinct volunteer_id) as leads_chapter_link
+    from leads
+    where lead_attribution = 'chapter'
+    group by 1
+),
+
+city_leads as (
+    select lower(trim(city)) as pc_city, volunteer_id
+    from leads
+    where lead_attribution = 'city'
+),
+
+-- PC city -> sheet city. Every PC city maps to itself, plus the aliases in the header.
+city_keys as (
+    select pc_city, pc_city as sheet_city from city_leads group by 1
+    union
+    select * from (values
+        ('bangalore', 'bengaluru urban'),
+        ('cochin', 'ernakulam'),
+        ('trivandrum', 'thiruvananthapuram'),
+        ('mysore', 'mysuru'),
+        ('ahmedabad', 'gandhinagar'),
+        ('gurugram', 'central delhi'),
+        ('gurugram', 'south east delhi')
+    ) as a (pc_city, sheet_city)
+),
+
+leads_by_city as (
+    select k.sheet_city as city_key, count(distinct cl.volunteer_id) as leads_city
+    from city_leads cl
+    join city_keys k on cl.pc_city = k.pc_city
+    group by 1
+),
+
 joined as (
     select
         ch.engine,
@@ -250,7 +310,9 @@ joined as (
         coalesce(kc.children_covered, 0) as children_covered,
         coalesce(kc.children_in_circle_no_volunteer, 0) as children_in_circle_no_volunteer,
         coalesce(kc.children_in_circle_no_slot, 0) as children_in_circle_no_slot,
-        coalesce(kc.children_in_no_class_section, 0) as children_in_no_class_section
+        coalesce(kc.children_in_no_class_section, 0) as children_in_no_class_section,
+        coalesce(lc.leads_chapter_link, 0) as leads_chapter_link,
+        coalesce(lcity.leads_city, 0) as leads_city
     from chapters ch
     left join {{ ref('seed_do_chapter_district') }} dd on ch.chapter_id = dd.chapter_id
     left join ay_status ays on ch.chapter_id = ays.chapter_id
@@ -259,6 +321,8 @@ joined as (
     left join no_slot_circle_counts ns on ch.chapter_id = ns.chapter_id
     left join child_counts kc on ch.chapter_id = kc.chapter_id
     left join volunteer_counts vc on ch.chapter_id = vc.chapter_id
+    left join leads_by_chapter lc on ch.chapter_id::text = lc.chapter_id
+    left join leads_by_city lcity on lower(trim(ch.city_name)) = lcity.city_key
 )
 
 select
@@ -279,6 +343,7 @@ select
     mentoring_circles_1_volunteer,
     mentoring_circles_2plus_volunteers,
     mentoring_circles_with_slot + mentoring_circles_no_slot as volunteers_needed,
+    ceil(active_children / 5.0)::int as volunteers_minimum_to_start,
     volunteers_in_chapter,
     volunteers_allocated,
     volunteers_in_chapter - volunteers_allocated as volunteers_not_allocated,
@@ -326,5 +391,10 @@ select
     children_in_circle_no_volunteer,
     children_in_circle_no_slot,
     children_in_no_class_section,
-    round(100.0 * children_covered / nullif(active_children, 0), 1) as pct_children_covered
+    round(100.0 * children_covered / nullif(active_children, 0), 1) as pct_children_covered,
+    (has_data_this_year
+        and children_in_no_class_section = 0
+        and children_in_circle_no_slot = 0) as setup_complete,
+    leads_chapter_link,
+    leads_city
 from joined
