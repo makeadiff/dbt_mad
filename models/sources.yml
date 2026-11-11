@@ -63,7 +63,7 @@ sources:
       - name: volunteerAttendance
       - name: baselineAssessments                        # numeracy
       - name: baselineAssessmentsFoundationalLiteracyP   # literacy
-      - name: baselineAssessmentsFoundationalLifeSkill   # life skills (lands with no main / tags)
+      - name: baselineAssessmentsFoundationalLifeSkill   # life skills
 
   - name: crm_raw
     tables:
