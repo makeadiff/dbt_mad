@@ -61,6 +61,9 @@ sources:
     tables:
       - name: childAttendance
       - name: volunteerAttendance
+      - name: baselineAssessments                        # numeracy
+      - name: baselineAssessmentsFoundationalLiteracyP   # literacy
+      - name: baselineAssessmentsFoundationalLifeSkill   # life skills (lands with no main / tags)
 
   - name: crm_raw
     tables:
