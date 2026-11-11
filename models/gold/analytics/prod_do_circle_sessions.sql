@@ -7,7 +7,8 @@
 --
 -- Planned (§3.8 ruling 2): every circle with a slot (prod_do_mentoring_circles), one session a week
 -- on its slot day, from 2026-10-01 to today, whether or not it has a volunteer, ignoring the
--- slot-link start and the allocation date. Cancelled dates are kept here; the weekly model drops them.
+-- slot-link start and the allocation date. Cancelled dates are kept in (ruled 2026-11-11), so planned
+-- is one figure everywhere: here, the weekly view, the chapter / district / national tiles.
 -- Groups, first that applies:
 --   cancelled             a cancellation logged (fct_e2_planned_session_status 'Cancelled'), nothing held
 --   held_by_original      a volunteer present
@@ -20,8 +21,7 @@
 -- Allocated on a date: a slot_class_section_volunteer row on any of the pair's slot_class_section
 -- rows with created_date on or before the date and either not removed or removed after it
 -- (deleted_at), the same reconstruction fct_e2_planned_session_status uses for "No Volunteer
--- Assigned". Cancelled dates with something held count as held, as before, so planned minus
--- cancelled equals the weekly "Sessions planned".
+-- Assigned". Cancelled dates with something held count as held, as before.
 --
 -- Cancel reason: the holiday reason logged in Bubble (int_bubble__school_holiday) for the school
 -- on that date, as is; the first when several overlap.

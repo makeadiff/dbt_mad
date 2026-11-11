@@ -28,6 +28,8 @@ select
     sessions_planned                as "Sessions planned since 1 October",
     sessions_held                   as "Sessions held since 1 October",
     sessions_not_held               as "Sessions not held since 1 October",
+    sessions_cancelled              as "Sessions cancelled since 1 October",
     pct_sessions_held               as "% of planned sessions held since 1 October",
+    pct_sessions_cancelled          as "% of planned sessions cancelled since 1 October",
     district_sort                   as "District order"
 from {{ ref('prod_do_district_summary') }}

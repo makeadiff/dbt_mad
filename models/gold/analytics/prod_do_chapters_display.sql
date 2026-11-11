@@ -21,7 +21,8 @@ with sessions_since_1_oct as (
     select
         chapter_id,
         sum(sessions_planned)::bigint as sessions_planned,
-        sum(sessions_held)::bigint as sessions_held
+        sum(sessions_held)::bigint as sessions_held,
+        sum(sessions_cancelled)::bigint as sessions_cancelled
     from {{ ref('prod_do_weekly_sessions') }}
     group by 1
 )
@@ -76,6 +77,7 @@ select
     coalesce(w.sessions_planned, 0)                                     as "Sessions planned since 1 October",
     coalesce(w.sessions_held, 0)                                        as "Sessions held since 1 October",
     coalesce(w.sessions_planned, 0) - coalesce(w.sessions_held, 0)      as "Sessions not held since 1 October",
+    coalesce(w.sessions_cancelled, 0)                                   as "Sessions cancelled since 1 October",
     round(100.0 * w.sessions_held / nullif(w.sessions_planned, 0), 1)   as "% of planned sessions held since 1 October",
     case s.sessions_commenced_not_met_reason
         when 'no_data' then 'No data this year'

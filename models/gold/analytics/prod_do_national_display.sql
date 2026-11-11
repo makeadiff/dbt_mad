@@ -41,6 +41,9 @@ select
     mentoring_circles_no_session_since_1_oct as "Mentoring circles with sessions before 1 October, none since",
     sessions_planned_since_1_oct    as "Sessions planned since 1 October",
     sessions_held_since_1_oct       as "Sessions held since 1 October",
+    pct_sessions_held_since_1_oct   as "% of planned sessions held since 1 October",
+    sessions_cancelled_since_1_oct  as "Sessions cancelled since 1 October",
+    pct_sessions_cancelled_since_1_oct as "% of planned sessions cancelled since 1 October",
     volunteers_not_allocated        as "Volunteers recruited but not assigned to a class section",
     mentoring_circles_needing_volunteer as "Mentoring circles still needing a volunteer"
 from {{ ref('prod_do_national_kpis') }}

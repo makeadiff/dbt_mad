@@ -42,7 +42,8 @@ with totals as (
 sessions as (
     select
         sum(sessions_planned)::bigint as sessions_planned_since_1_oct,
-        sum(sessions_held)::bigint as sessions_held_since_1_oct
+        sum(sessions_held)::bigint as sessions_held_since_1_oct,
+        sum(sessions_cancelled)::bigint as sessions_cancelled_since_1_oct
     from {{ ref('prod_do_weekly_sessions') }}
 ),
 
@@ -77,6 +78,9 @@ select
     mentoring_circles_no_session_since_1_oct,
     sessions_planned_since_1_oct,
     sessions_held_since_1_oct,
+    round(100.0 * sessions_held_since_1_oct / nullif(sessions_planned_since_1_oct, 0), 1) as pct_sessions_held_since_1_oct,
+    sessions_cancelled_since_1_oct,
+    round(100.0 * sessions_cancelled_since_1_oct / nullif(sessions_planned_since_1_oct, 0), 1) as pct_sessions_cancelled_since_1_oct,
     chapters_setup_complete,
     round(100.0 * chapters_setup_complete / nullif(chapters_total, 0), 1) as pct_chapters_setup_complete,
     volunteers_minimum_to_start,

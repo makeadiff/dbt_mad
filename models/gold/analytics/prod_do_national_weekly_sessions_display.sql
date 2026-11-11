@@ -12,6 +12,8 @@ select
     sum(sessions_planned)::bigint                                           as "Sessions planned",
     sum(sessions_held)::bigint                                              as "Sessions held",
     sum(sessions_held_by_substitute)::bigint                                as "Sessions held by a substitute",
-    round(100.0 * sum(sessions_held) / nullif(sum(sessions_planned), 0), 1) as "% of planned sessions held"
+    sum(sessions_cancelled)::bigint                                         as "Cancelled",
+    round(100.0 * sum(sessions_held) / nullif(sum(sessions_planned), 0), 1) as "% of planned sessions held",
+    round(100.0 * sum(sessions_cancelled) / nullif(sum(sessions_planned), 0), 1) as "% of planned sessions cancelled"
 from {{ ref('prod_do_weekly_sessions') }}
 group by 1, 2, 3, 4

@@ -12,9 +12,11 @@
 -- Metric 3 stays per volunteer.
 --   Planned: every circle with a slot, one session a week on its slot day from 2026-10-01 to
 --     today, whether or not it has a volunteer, ignoring the slot-link start (what the dashboard
---     called "Ideal sessions" before 2026-11-11); cancelled dates dropped.
+--     called "Ideal sessions" before 2026-11-11), cancelled dates kept in (ruled 2026-11-11), so
+--     planned here equals the session breakdown's planned.
 --   Held: a planned circle-date with a volunteer present or a substitute; by a substitute when no
 --     volunteer was present.
+--   Cancelled: a cancellation logged and nothing held (the breakdown's cancelled group).
 -- The old E2 dashboard's "Ideal Session Count" (sections x 2 slots x weeks) is a different figure.
 -- % held is per row only; Dalgo charts it per week and never sums it.
 --
@@ -46,9 +48,9 @@ per_week as (
         week_start,
         count(*) as sessions_planned,
         count(*) filter (where session_group in ('held_by_original', 'held_by_substitute')) as sessions_held,
-        count(*) filter (where session_group = 'held_by_substitute') as sessions_held_by_substitute
+        count(*) filter (where session_group = 'held_by_substitute') as sessions_held_by_substitute,
+        count(*) filter (where session_group = 'cancelled') as sessions_cancelled
     from {{ ref('prod_do_circle_sessions') }}
-    where session_group <> 'cancelled'
     group by 1, 2
 )
 
@@ -68,7 +70,9 @@ select
     coalesce(pw.sessions_planned, 0) as sessions_planned,
     coalesce(pw.sessions_held, 0) as sessions_held,
     coalesce(pw.sessions_held_by_substitute, 0) as sessions_held_by_substitute,
-    round(100.0 * pw.sessions_held / nullif(pw.sessions_planned, 0), 1) as pct_sessions_held
+    coalesce(pw.sessions_cancelled, 0) as sessions_cancelled,
+    round(100.0 * pw.sessions_held / nullif(pw.sessions_planned, 0), 1) as pct_sessions_held,
+    round(100.0 * pw.sessions_cancelled / nullif(pw.sessions_planned, 0), 1) as pct_sessions_cancelled
 from weeks wk
 cross join chapters ch
 left join per_week pw

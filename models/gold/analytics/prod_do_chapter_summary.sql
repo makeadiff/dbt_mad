@@ -49,8 +49,11 @@
 -- lead_attribution = 'chapter' is attributable (leads_chapter_link, the same rule as
 -- prod_sric_dashboard_data.leads_applied_via_link). leads_city is the count of 'city' leads in the
 -- chapter's city, repeated on every chapter in that city, so it must never be summed across
--- chapters; Platform Commons city names that differ from the mapping sheet's are aliased here
--- (Bangalore, Cochin, Trivandrum, Mysore). The national open pool lives on prod_do_national_kpis.
+-- chapters. Platform Commons city names are mapped to the sheet's: spelling (Bangalore = Bengaluru
+-- Urban, Cochin = Ernakulam, Trivandrum = Thiruvananthapuram, Mysore = Mysuru) and PC cities that
+-- cover more than one sheet city (Ahmedabad also serves Gandhinagar; Gurugram serves Central Delhi
+-- and South East Delhi: those chapters' own link applicants are filed under those PC cities,
+-- checked 2026-11-11). The national open pool lives on prod_do_national_kpis.
 --
 -- District and DO come from seed_do_chapter_district (a temporary seed from the DO dashboard
 -- sheet, until district lands in a mapping source).
@@ -251,18 +254,31 @@ leads_by_chapter as (
     group by 1
 ),
 
-leads_by_city as (
-    select
-        case lower(trim(city))
-            when 'bangalore' then 'bengaluru urban'
-            when 'cochin' then 'ernakulam'
-            when 'trivandrum' then 'thiruvananthapuram'
-            when 'mysore' then 'mysuru'
-            else lower(trim(city))
-        end as city_key,
-        count(distinct volunteer_id) as leads_city
+city_leads as (
+    select lower(trim(city)) as pc_city, volunteer_id
     from leads
     where lead_attribution = 'city'
+),
+
+-- PC city -> sheet city. Every PC city maps to itself, plus the aliases in the header.
+city_keys as (
+    select pc_city, pc_city as sheet_city from city_leads group by 1
+    union
+    select * from (values
+        ('bangalore', 'bengaluru urban'),
+        ('cochin', 'ernakulam'),
+        ('trivandrum', 'thiruvananthapuram'),
+        ('mysore', 'mysuru'),
+        ('ahmedabad', 'gandhinagar'),
+        ('gurugram', 'central delhi'),
+        ('gurugram', 'south east delhi')
+    ) as a (pc_city, sheet_city)
+),
+
+leads_by_city as (
+    select k.sheet_city as city_key, count(distinct cl.volunteer_id) as leads_city
+    from city_leads cl
+    join city_keys k on cl.pc_city = k.pc_city
     group by 1
 ),
 

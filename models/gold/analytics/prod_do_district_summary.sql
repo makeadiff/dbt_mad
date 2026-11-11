@@ -7,7 +7,7 @@
 -- "All districts" would sort first by name. Baseline columns come with Metric 4.
 --
 -- Sessions planned / held are circle-sessions from 1 Oct to today (spec §3.3b, §3.8 ruling 2),
--- summed from prod_do_weekly_sessions; not held = planned - held.
+-- summed from prod_do_weekly_sessions; planned includes cancelled dates; not held = planned - held.
 -- Layout v4 (spec §3.8): chapters with setup complete and its %, minimum volunteers to start
 -- (sum of each chapter's ceiling) and leads from chapter links (additive; city and open-pool leads
 -- aren't per chapter, so they live on prod_do_national_kpis only).
@@ -18,13 +18,15 @@ with chapter_sessions as (
     select
         chapter_id,
         sum(sessions_planned)::bigint as sessions_planned,
-        sum(sessions_held)::bigint as sessions_held
+        sum(sessions_held)::bigint as sessions_held,
+        sum(sessions_cancelled)::bigint as sessions_cancelled
     from {{ ref('prod_do_weekly_sessions') }}
     group by 1
 ),
 
 chapters as (
-    select s.*, coalesce(w.sessions_planned, 0) as sessions_planned, coalesce(w.sessions_held, 0) as sessions_held
+    select s.*, coalesce(w.sessions_planned, 0) as sessions_planned, coalesce(w.sessions_held, 0) as sessions_held,
+        coalesce(w.sessions_cancelled, 0) as sessions_cancelled
     from {{ ref('prod_do_chapter_summary') }} s
     left join chapter_sessions w on s.chapter_id = w.chapter_id
 ),
@@ -48,7 +50,8 @@ rolled as (
         sum(mentoring_circles_started)::bigint as mentoring_circles_started,
         sum(mentoring_circles_started + mentoring_circles_not_started)::bigint as mentoring_circles_due,
         sum(sessions_planned)::bigint as sessions_planned,
-        sum(sessions_held)::bigint as sessions_held
+        sum(sessions_held)::bigint as sessions_held,
+        sum(sessions_cancelled)::bigint as sessions_cancelled
     from chapters
     group by 1, 2
 
@@ -72,7 +75,8 @@ rolled as (
         sum(mentoring_circles_started)::bigint,
         sum(mentoring_circles_started + mentoring_circles_not_started)::bigint,
         sum(sessions_planned)::bigint,
-        sum(sessions_held)::bigint
+        sum(sessions_held)::bigint,
+        sum(sessions_cancelled)::bigint
     from chapters
 )
 
@@ -101,5 +105,7 @@ select
     sessions_planned,
     sessions_held,
     sessions_planned - sessions_held as sessions_not_held,
-    round(100.0 * sessions_held / nullif(sessions_planned, 0), 1) as pct_sessions_held
+    sessions_cancelled,
+    round(100.0 * sessions_held / nullif(sessions_planned, 0), 1) as pct_sessions_held,
+    round(100.0 * sessions_cancelled / nullif(sessions_planned, 0), 1) as pct_sessions_cancelled
 from rolled
