@@ -176,15 +176,26 @@ models:
 
   - name: prod_cci_volunteer_sessions
     description: >
-      CCI dashboard (E1) volunteer table without planned or consistency columns, one row per volunteer per CCI per period (spec §3.10).
+      CCI dashboard (E1) volunteer table, one row per volunteer per CCI per period, with planned
+      (slot-day based, less cancellations and holidays), taken, % of planned taken and status
+      (spec §3.10, §8 2026-11-12 (later) ruling 2).
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
               - chapter_id
-              - volunteer_id
+              - volunteer_user_id
               - period_type
               - period_start
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "sessions_planned > 0 or sessions_taken > 0"
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "planned_taken <= sessions_planned and planned_taken <= sessions_taken"
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "(sessions_planned = 0) = (attendance_pct is null and status is null)"
 
   - name: prod_cci_child_sessions
     description: >
@@ -211,7 +222,24 @@ models:
   - name: prod_cci_volunteer_sessions_display
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
-      should ref() this model. One row per volunteer per CCI per period.
+      should ref() this model. One row per volunteer per CCI per period. Same columns as
+      prod_do_volunteer_sessions_display, less "Chapter organiser".
+    columns:
+      - name: Status
+        quote: true
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Healthy', 'At risk', 'Unhealthy']
+      - name: '% of planned sessions taken'
+        quote: true
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+              config:
+                where: '"% of planned sessions taken" is not null'
 
   - name: prod_cci_child_sessions_display
     description: >
