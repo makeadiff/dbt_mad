@@ -242,7 +242,9 @@ child_counts as (
 ),
 
 leads as (
-    select volunteer_id, lead_attribution, chapter_id::text as chapter_id, city
+    -- Chapter-link leads are counted on the link's chapter (link_chapter_id, 2026-11-12), not the
+    -- school a volunteer is mapped to, so a CCI-link applicant never counts as a School chapter lead.
+    select volunteer_id, lead_attribution, link_chapter_id::text as chapter_id, city
     from {{ ref('fct_volunteer_pipeline') }}
     where is_applied and not is_recruited_new
 ),
