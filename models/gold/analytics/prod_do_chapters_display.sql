@@ -13,7 +13,7 @@
 -- prod_do_weekly_sessions (circle-sessions, §3.3b counting); it joins here rather than in the
 -- summary because the weekly model already refs the summary.
 -- Layout v4 (spec §3.8, 2026-11-11): "Setup complete", "Minimum volunteers to start sessions" and
--- the leads columns are new; volunteer names changed (needed one per mentoring circle, recruited,
+-- the leads columns are new; volunteer names changed (needed one per mentoring circle, mapped to a chapter (was "recruited", E1 spec §7 L3),
 -- assigned to a class section); the 2:5 column is dropped. "Leads in this city" is a city total
 -- repeated on every chapter in the city: a table column, never summed in a tile.
 
@@ -49,9 +49,9 @@ select
     -- Volunteers
     s.volunteers_minimum_to_start                                       as "Minimum volunteers to start sessions",
     s.volunteers_needed                                                 as "Volunteers needed, one per mentoring circle",
-    s.volunteers_in_chapter                                             as "Volunteers recruited",
+    s.volunteers_in_chapter                                             as "Volunteers mapped to a chapter",
     s.volunteers_allocated                                              as "Volunteers assigned to a class section",
-    s.volunteers_not_allocated                                          as "Volunteers recruited but not assigned to a class section",
+    s.volunteers_not_allocated                                          as "Volunteers mapped but not assigned to a class section",
     s.leads_chapter_link                                                as "Leads from this chapter's link",
     s.leads_city                                                        as "Leads in this city",
     s.mentoring_circles_needing_volunteer                               as "Mentoring circles still needing a volunteer",

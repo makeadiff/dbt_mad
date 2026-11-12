@@ -217,3 +217,71 @@ models:
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
       should ref() this model. One row per child per CCI per period.
+
+  - name: prod_cci_planned_sessions
+    description: >
+      CCI dashboard (E1) base, layout v4 (spec §7 L1): every planned circle-date from 1 Oct 2026 (a
+      circle with a weekly slot day from Platform Commons' class ops data), cancelled ones kept in,
+      each in one group. Base for the weekly, breakdown and cancellation models. Not read by Dalgo.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - worknode_slot_shift_id
+              - session_date
+    columns:
+      - name: session_group
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['cancelled', 'held_by_original', 'held_by_substitute', 'volunteer_absent', 'no_volunteer_assigned']
+
+  - name: prod_cci_link_applicants
+    description: >
+      CCI dashboard (E1), layout v4 (spec §7 L4): this year's applicants who applied through a CCI's
+      sourcing campaign link (chapter mapping sheet, engine E1). Not read by Dalgo.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - volunteer_id
+              - chapter_id
+
+  - name: prod_cci_session_groups_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. Long form of prod_cci_session_breakdown for the Sessions pies (spec E1
+      §7 L5): one row per CCI x week x "What happened" x "Held by", zero rows dropped. The three sum
+      tests against the breakdown are singular tests: tests/assert_cci_session_groups_sum_*.sql.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - '"Chapter"'
+              - '"City"'
+              - '"Week starting"'
+              - '"What happened"'
+              - '"Held by"'
+    columns:
+      - name: What happened
+        quote: true
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Held', 'Cancelled', 'Volunteer absent', 'No volunteer assigned']
+      - name: Sessions
+        quote: true
+        tests:
+          - not_null
+
+  - name: prod_cci_national_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One-row national tiles for the CCI dashboard (spec E1 §7 L4, L7): the
+      All districts row plus city and open-pool leads, which aren't per CCI.
+    tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: '"CCIs" > 0'

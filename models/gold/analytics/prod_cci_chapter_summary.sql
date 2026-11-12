@@ -15,8 +15,28 @@
 -- Volunteers placed: distinct volunteers on the CCI's circles; the national figure sums the CCIs.
 -- Stopped logging (§3.11): a circle with a session held before 1 Oct and none since, from
 -- prod_cci_session_dates. Needing a volunteer (§3.11): circles with no volunteer + sections with no circle.
--- Started (§3.4): a circle with a session held since 1 June. Nothing here uses the weekly slot (§7
--- ruling 1) and there is no baseline (§3.7).
+-- Started (§3.4): a circle with a session held since 1 June. No baseline (§3.7).
+--
+-- Layout v4 (spec §7 L1-L7, copying DO_DASHBOARD_SPEC.md §3.8, 2026-11-12):
+-- Weekly slot: a circle's slot day from Platform Commons' class ops data (prod_cci_mentoring_circles).
+-- Weekly session slots = distinct slot (day + name) across the CCI's circles. Child status gains
+-- School's "in a mentoring circle with no weekly slot", worst first: not yet in a circle -> in a
+-- circle with no weekly slot -> in a circle with no volunteer -> with a volunteer; the four sum to
+-- active children, so "with a volunteer" now also needs every circle to have a slot day.
+-- Setup complete: children with data, none outside a circle, none in a circle with no slot.
+-- Minimum volunteers to start = ceil(children / 5) (the old "needed, minimum 1:5"). Volunteers
+-- needed stays as set up (L2). Volunteers mapped to a chapter (L3) stays off: no year-scoped source.
+-- Sessions since 1 Oct (planned, held, by substitute, cancelled, volunteer absent, no volunteer
+-- assigned) from prod_cci_planned_sessions, so held now counts planned dates only (a session logged
+-- on a circle with no slot day isn't in it).
+-- Leads (L4): this year's applicants who applied and aren't hired (fct_volunteer_pipeline is_applied
+-- and not is_recruited_new). leads_chapter_link = those whose 2026-27 application's campaign is the
+-- CCI's sourcing_campaign_code on the chapter mapping sheet (engine E1, chapter_id = school_id; codes
+-- btrimmed of tabs, two carry a leading tab). fct_volunteer_pipeline only joins E2 codes, so it files
+-- these applicants as 'city' or 'chapter_unmatched'; this model leaves it unchanged (no shared-fact
+-- edits) and resolves the E1 codes here. leads_city = 'city' leads in the CCI's city, less the ones
+-- with a CCI code (they count on that CCI), repeated on every CCI in the city: never summed. PC city
+-- Gurugram serves Delhi, as on School. The national open pool is on prod_cci_national_display.
 --
 -- Grain: one row per chapter_id.
 
@@ -35,6 +55,7 @@ section_circles as (
         chapter_id,
         sc_level_batch_id,
         count(*) as circles,
+        count(*) filter (where not has_weekly_slot) as circles_no_slot,
         count(*) filter (where volunteers = 0) as circles_no_volunteer
     from {{ ref('prod_cci_mentoring_circles') }}
     group by 1, 2
@@ -46,6 +67,7 @@ child_sections as (
         ac.student_id,
         ac.sc_level_batch_id,
         coalesce(sc.circles, 0) = 0 as section_has_no_circle,
+        coalesce(sc.circles_no_slot, 0) > 0 as section_has_circle_no_slot,
         coalesce(sc.circles_no_volunteer, 0) > 0 as section_has_circle_no_volunteer
     from {{ ref('prod_cci_active_children') }} ac
     left join section_circles sc
@@ -59,6 +81,7 @@ children as (
         student_id,
         case
             when bool_or(section_has_no_circle) then 'not_in_circle'
+            when bool_or(section_has_circle_no_slot) then 'circle_no_slot'
             when bool_or(section_has_circle_no_volunteer) then 'circle_no_volunteer'
             else 'with_volunteer'
         end as child_status
@@ -72,6 +95,7 @@ child_counts as (
         count(*) as active_children,
         count(*) filter (where child_status = 'with_volunteer') as children_with_volunteer,
         count(*) filter (where child_status = 'not_in_circle') as children_not_in_circle,
+        count(*) filter (where child_status = 'circle_no_slot') as children_in_circle_no_slot,
         count(*) filter (where child_status = 'circle_no_volunteer') as children_in_circle_no_volunteer
     from children
     group by 1
@@ -108,9 +132,49 @@ circle_counts as (
         count(*) filter (where volunteers = 1) as circles_one_volunteer,
         count(*) filter (where volunteers >= 2) as circles_two_plus_volunteers,
         count(*) filter (where is_started) as circles_started,
-        coalesce(sum(sessions_held_since_1_oct), 0)::bigint as sessions_held_since_1_oct,
-        count(*) filter (where has_weekly_slot) as circles_with_weekly_slot
+        count(*) filter (where has_weekly_slot) as circles_with_weekly_slot,
+        count(distinct slot_day || '|' || coalesce(slot_name, '')) filter (where has_weekly_slot) as weekly_session_slots
     from {{ ref('prod_cci_mentoring_circles') }}
+    group by 1
+),
+
+planned as (
+    select
+        chapter_id,
+        count(*) as sessions_planned_since_1_oct,
+        count(*) filter (where session_group in ('held_by_original', 'held_by_substitute')) as sessions_held_since_1_oct,
+        count(*) filter (where session_group = 'held_by_substitute') as sessions_held_by_substitute_since_1_oct,
+        count(*) filter (where session_group = 'cancelled') as sessions_cancelled_since_1_oct,
+        count(*) filter (where session_group = 'volunteer_absent') as sessions_volunteer_absent_since_1_oct,
+        count(*) filter (where session_group = 'no_volunteer_assigned') as sessions_no_volunteer_assigned_since_1_oct
+    from {{ ref('prod_cci_planned_sessions') }}
+    group by 1
+),
+
+leads as (
+    select volunteer_id, lead_attribution, lower(trim(city)) as pc_city
+    from {{ ref('fct_volunteer_pipeline') }}
+    where is_applied and not is_recruited_new
+),
+
+link_applicants as (
+    select volunteer_id, chapter_id from {{ ref('prod_cci_link_applicants') }}
+),
+
+leads_by_chapter as (
+    select la.chapter_id, count(distinct l.volunteer_id) as leads_chapter_link
+    from leads l
+    join link_applicants la on l.volunteer_id = la.volunteer_id
+    group by 1
+),
+
+leads_by_city as (
+    select
+        case l.pc_city when 'gurugram' then 'delhi' else l.pc_city end as city_key,
+        count(distinct l.volunteer_id) as leads_city
+    from leads l
+    where l.lead_attribution = 'city'
+      and not exists (select 1 from link_applicants la where la.volunteer_id = l.volunteer_id)
     group by 1
 ),
 
@@ -147,6 +211,7 @@ base as (
         coalesce(cc.active_children, 0) as active_children,
         coalesce(cc.children_with_volunteer, 0) as children_with_volunteer,
         coalesce(cc.children_not_in_circle, 0) as children_not_in_circle,
+        coalesce(cc.children_in_circle_no_slot, 0) as children_in_circle_no_slot,
         coalesce(cc.children_in_circle_no_volunteer, 0) as children_in_circle_no_volunteer,
         coalesce(pc.children_foundations, 0) as children_foundations,
         coalesce(pc.children_education_support, 0) as children_education_support,
@@ -159,8 +224,16 @@ base as (
         coalesce(k.circles_one_volunteer, 0) as circles_one_volunteer,
         coalesce(k.circles_two_plus_volunteers, 0) as circles_two_plus_volunteers,
         coalesce(k.circles_started, 0) as circles_started,
-        coalesce(k.sessions_held_since_1_oct, 0) as sessions_held_since_1_oct,
         coalesce(k.circles_with_weekly_slot, 0) as circles_with_weekly_slot,
+        coalesce(k.weekly_session_slots, 0) as weekly_session_slots,
+        coalesce(pl.sessions_planned_since_1_oct, 0) as sessions_planned_since_1_oct,
+        coalesce(pl.sessions_held_since_1_oct, 0) as sessions_held_since_1_oct,
+        coalesce(pl.sessions_held_by_substitute_since_1_oct, 0) as sessions_held_by_substitute_since_1_oct,
+        coalesce(pl.sessions_cancelled_since_1_oct, 0) as sessions_cancelled_since_1_oct,
+        coalesce(pl.sessions_volunteer_absent_since_1_oct, 0) as sessions_volunteer_absent_since_1_oct,
+        coalesce(pl.sessions_no_volunteer_assigned_since_1_oct, 0) as sessions_no_volunteer_assigned_since_1_oct,
+        coalesce(lc.leads_chapter_link, 0) as leads_chapter_link,
+        coalesce(lcity.leads_city, 0) as leads_city,
         coalesce(p.volunteers_placed, 0) as volunteers_placed,
         coalesce(st.circles_stopped_logging, 0) as circles_stopped_logging
     from chapters ch
@@ -170,6 +243,9 @@ base as (
     left join circle_counts k on ch.chapter_id = k.chapter_id
     left join placed p on ch.chapter_id = p.chapter_id
     left join stopped st on ch.chapter_id = st.chapter_id
+    left join planned pl on ch.chapter_id = pl.chapter_id
+    left join leads_by_chapter lc on ch.chapter_id = lc.chapter_id
+    left join leads_by_city lcity on lower(trim(ch.city)) = lcity.city_key
 )
 
 select
@@ -178,6 +254,13 @@ select
     round(100.0 * b.children_with_volunteer / nullif(b.active_children, 0), 1) as pct_children_with_volunteer,
     -- Volunteers needed (§3.3)
     ceil(b.active_children / 5.0)::int as volunteers_needed_min_1to5,
+    ceil(b.active_children / 5.0)::int as volunteers_minimum_to_start,
+    b.mentoring_circles - b.circles_with_weekly_slot as circles_no_weekly_slot,
+    (b.active_children > 0 and b.children_not_in_circle = 0 and b.children_in_circle_no_slot = 0) as setup_complete,
+    round(100.0 * (b.sessions_held_since_1_oct - b.sessions_held_by_substitute_since_1_oct)
+        / nullif(b.sessions_planned_since_1_oct, 0), 1) as pct_held_by_original_since_1_oct,
+    round(100.0 * b.sessions_held_since_1_oct / nullif(b.sessions_planned_since_1_oct, 0), 1) as pct_sessions_held_since_1_oct,
+    round(100.0 * b.sessions_cancelled_since_1_oct / nullif(b.sessions_planned_since_1_oct, 0), 1) as pct_sessions_cancelled_since_1_oct,
     ceil(b.active_children * 2 / 5.0)::int as volunteers_needed_min_2to5,
     b.mentoring_circles + b.sections_no_circle as volunteers_needed_as_set_up_1to5,
     b.circles_no_volunteer + b.sections_no_circle as circles_needing_volunteer,
