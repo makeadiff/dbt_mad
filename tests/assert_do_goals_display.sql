@@ -1,6 +1,7 @@
 -- Goals table checks (spec §3.6e): 40 rows (8 districts x 5 goals); All districts goals 1-3 match
 -- prod_do_district_display's All row (goal 3 from prod_do_chapter_summary); goal 4 All row matches prod_do_national_consistency_display
--- "Since 1 October"; district goal-4 counts add up to the All row; Met is Yes iff Now >= Target.
+-- "Since 1 October"; district goal-4 counts add up to the All row; goal 5 All row matches
+-- prod_do_district_display's baseline %; Met is Yes iff Now >= Target (every goal, baseline included).
 with g as (
     select * from {{ ref('prod_do_goals_display') }}
 ),
@@ -54,4 +55,9 @@ where dist_num <> all_num or dist_den <> all_den
 union all
 select 'met flag'
 from g
-where "Goal order" <> 5 and ("Met" = 'Yes') <> ("Now" >= replace("Target", '%', '')::numeric)
+where ("Met" = 'Yes') <> ("Now" >= replace("Target", '%', '')::numeric)
+union all
+select 'goal 5'
+from g, all_district a
+where g."District" = 'All districts' and g."Goal order" = 5
+  and g."Now" is distinct from a."% of children with baseline complete"

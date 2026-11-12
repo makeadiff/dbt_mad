@@ -31,5 +31,13 @@ select
     sessions_cancelled              as "Sessions cancelled since 1 October",
     pct_sessions_held               as "% of planned sessions held since 1 October",
     pct_sessions_cancelled          as "% of planned sessions cancelled since 1 October",
+    children_numeracy_done          as "Children with numeracy done",
+    children_literacy_done          as "Children with literacy done",
+    children_life_skills_done       as "Children with life skills done",
+    children_0_forms                as "Children with no form done",
+    children_1_form                 as "Children with 1 form done",
+    children_2_forms                as "Children with 2 forms done",
+    children_3_forms                as "Children with all 3 forms done",
+    pct_baseline_complete           as "% of children with baseline complete",
     district_sort                   as "District order"
 from {{ ref('prod_do_district_summary') }}

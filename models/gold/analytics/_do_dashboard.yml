@@ -208,6 +208,38 @@ models:
           - unique
           - not_null
 
+  - name: prod_do_baseline_chapters
+    description: >
+      DO dashboard (E2) Metric 4, baseline complete (spec §3.4, B1-B5), snake_case. One row per
+      chapter: active children, children with each form done (numeracy, literacy, life skills;
+      published, baseline or blank round), children with 0 / 1 / 2 / 3 forms, % complete.
+      Children matched through prod_do_active_children. Not read by Dalgo.
+    columns:
+      - name: chapter_id
+        tests:
+          - unique
+          - not_null
+      - name: active_children
+        tests:
+          - not_null
+      - name: children_0_forms
+        tests:
+          - not_null
+      - name: children_3_forms
+        tests:
+          - not_null
+
+  - name: prod_do_baseline_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. The Baseline tab: one row per chapter, sourced from
+      prod_do_baseline_chapters. Counts children, not forms.
+    columns:
+      - name: Chapter
+        quote: true
+        tests:
+          - not_null
+
   - name: prod_do_district_display
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt

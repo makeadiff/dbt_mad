@@ -12,6 +12,9 @@
 -- (open_pool). Worknode-scoped leads with no campaign match (chapter_unmatched) are left out of
 -- all three, per SRI spec §12.
 --
+-- Metric 4, baseline complete (spec §3.4): summed from prod_do_baseline_chapters, target 80% of
+-- active children, ratio of sums.
+--
 -- Grain: exactly one row (engine = 'E2').
 
 with totals as (
@@ -53,6 +56,18 @@ leads as (
         count(distinct volunteer_id) filter (where lead_attribution = 'open_pool') as leads_open_pool
     from {{ ref('fct_volunteer_pipeline') }}
     where is_applied and not is_recruited_new
+),
+
+baseline as (
+    select
+        sum(children_numeracy_done)::bigint as children_numeracy_done,
+        sum(children_literacy_done)::bigint as children_literacy_done,
+        sum(children_life_skills_done)::bigint as children_life_skills_done,
+        sum(children_0_forms)::bigint as children_0_forms,
+        sum(children_1_form)::bigint as children_1_form,
+        sum(children_2_forms)::bigint as children_2_forms,
+        sum(children_3_forms)::bigint as children_3_forms
+    from {{ ref('prod_do_baseline_chapters') }}
 )
 
 select
@@ -98,7 +113,18 @@ select
     100 as target_pct_children_covered,
     leads_chapter_link,
     leads_city,
-    leads_open_pool
+    leads_open_pool,
+    children_numeracy_done,
+    children_literacy_done,
+    children_life_skills_done,
+    children_0_forms,
+    children_1_form,
+    children_2_forms,
+    children_3_forms,
+    children_3_forms as children_baseline_complete,
+    round(100.0 * children_3_forms / nullif(active_children, 0), 1) as pct_baseline_complete,
+    80 as target_pct_baseline_complete
 from totals
 cross join sessions
 cross join leads
+cross join baseline
