@@ -173,3 +173,10 @@ sources:
   - name: pc_reporting
     tables:
       - name: Class_ops_master_data
+
+  # E1 baseline sheet "MAD Baseline - E1 & Mentoring test group (Responses)", tab "Baseline
+  # Responses" (E1 spec §3.7, §7 B1). Airbyte full refresh / overwrite; one row per form. Holds
+  # child, volunteer and CHO names and emails: they stop at staging (only counts leave raw).
+  - name: google_sheets
+    tables:
+      - name: Baseline_Responses

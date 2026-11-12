@@ -62,6 +62,11 @@ select
     a.sessions_cancelled_since_1_oct            as "Sessions cancelled since 1 October",
     a.pct_sessions_cancelled_since_1_oct        as "% of planned sessions cancelled since 1 October",
     a.sessions_volunteer_absent_since_1_oct     as "Volunteer absent since 1 October",
-    a.sessions_no_volunteer_assigned_since_1_oct as "No volunteer assigned since 1 October"
+    a.sessions_no_volunteer_assigned_since_1_oct as "No volunteer assigned since 1 October",
+    -- Baseline (spec §7 B5)
+    a.children_with_baseline                    as "Children with a baseline",
+    a.pct_children_with_baseline                as "% of children with a baseline",
+    a.children_cleared_aser                     as "Children who cleared ASER",
+    a.baseline_forms_submitted                  as "Baseline forms submitted"
 from all_row a
 cross join leads l
