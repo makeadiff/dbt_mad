@@ -21,7 +21,11 @@
 -- allocated_by_volunteer has its own local dedup for the same defect class on a different source
 -- table (slot_class_section_volunteer, not shared with another "allocated" consumer today).
 --
--- Scope: E2 chapters only, matching prod_sric_dashboard_data's WHERE engine = 'E2'.
+-- Scope: E2 chapters only, matching prod_sric_dashboard_data's WHERE engine = 'E2' -- except the
+-- intake campaign-code match (lead_attribution = 'chapter'), which since 2026-11-12 also matches E1
+-- (CCI) codes (E1 spec §7 L4), so a CCI-link applicant is a chapter lead, not 'city' or
+-- 'chapter_unmatched'. Coverage (mapped / allocated) stays E2. E1 chapter_id = the PC school_id; no id
+-- is on both engines. Downstream School models keep E2 by joining E2 chapters.
 --
 -- KNOWN GAP -- chapter_id on the INTAKE side (§12c): PC's own worknode ID space does not match
 -- the mapping sheet's worknode_id (confirmed 0 matches on ID and on name, 2026-08-26) -- a
@@ -63,14 +67,73 @@ e2_chapter_lookup as (
     where m.engine = 'E2'
 ),
 
+-- Intake campaign match, E1 and E2 (2026-11-12, E1 spec §7 L4). Codes and campaigns are btrimmed of
+-- spaces, tabs and newlines (two E1 sheet codes start with a tab). '#N/A' is a sheet formula error
+-- on several E2 rows, not a code.
+campaign_chapter_lookup as (
+    select distinct
+        m.chapter_id,
+        btrim(m.sourcing_campaign_code, E' \t\r\n') as campaign_code
+    from {{ ref('int_google_sheet__chapter_mapping') }} m
+    where m.engine in ('E1', 'E2')
+      and nullif(btrim(m.sourcing_campaign_code, E' \t\r\n'), '') is not null
+      and btrim(m.sourcing_campaign_code, E' \t\r\n') <> '#N/A'
+),
+
 -- Chapter name lookup, same pattern prod_sric_funnel uses for its chapter_names CTE (a distinct
 -- chapter_id -> name mapping, left-joined onto the final grain) -- see the 2026-09-03 header note.
+-- E1 added 2026-11-12 so CCI-link leads carry their CCI's name.
 chapter_names as (
     select distinct
         chapter_id,
         chapter_name as chapter
     from {{ ref('int_google_sheet__chapter_mapping') }}
-    where engine = 'E2'
+    where engine in ('E1', 'E2')
+),
+
+-- Chapter worknode -> city (2026-11-12, E1 spec §8 leads PR). Applicants who pick a MAD_CHAPTER
+-- worknode in the app without a chapter link were 'chapter_unmatched' (383 in 2026-27; 340 carry
+-- the generic organic_5246 campaign). The worknode's name almost always starts with its city ("Pune",
+-- "Delhi Bal Sahyog", "Trivandrum E1"), so it resolves to the sheet city it starts with, after
+-- spelling aliases (Bengaluru = Bangalore, Vijaywada = Vijayawada, Goa = North Goa); the longest
+-- sheet city wins. A name that starts with no sheet city (Jaipur, Chandigarh, Mangalore) keeps its
+-- own name, less any " E1" / " E2" suffix. Chapter names aren't used: only the three Aftercare
+-- worknodes match one, and those aren't CCIs, so a chapter lead there would show on no tile.
+sheet_cities as (
+    select distinct city_name, lower(trim(city_name)) as city_key
+    from {{ ref('int_google_sheet__chapter_mapping') }}
+    where nullif(trim(city_name), '') is not null
+),
+
+chapter_worknode_names as (
+    select distinct
+        worknode_name,
+        regexp_replace(regexp_replace(regexp_replace(lower(trim(worknode_name)),
+            '^bengaluru', 'bangalore'),
+            '^vijaywada', 'vijayawada'),
+            '^goa\M', 'north goa') as name_key
+    from {{ ref('stg_pc_worknode') }}
+    where worknode_type ilike '%MAD_CHAPTER%'
+      and nullif(trim(worknode_name), '') is not null
+),
+
+chapter_worknode_cities as (
+    select
+        n.worknode_name,
+        coalesce(
+            sc.city_name,
+            initcap(regexp_replace(trim(n.worknode_name), '\s+E[12]$', '', 'i'))
+        ) as city_name
+    from chapter_worknode_names n
+    left join lateral (
+        select s.city_name
+        from sheet_cities s
+        where n.name_key = s.city_key
+           or n.name_key like s.city_key || ' %'
+           or n.name_key like s.city_key || '-%'
+        order by length(s.city_key) desc
+        limit 1
+    ) sc on true
 ),
 
 -- INTAKE: this year's cohort only, scoped to the single volunteer-intake opportunity (rule 1,
@@ -83,14 +146,18 @@ intake_applicants as (
         a.applicant_campaign,
         w.worknode_type,
         w.worknode_name,
+        cwc.city_name as chapter_worknode_city,
         cm.chapter_id as campaign_chapter_id
     from {{ ref('stg_pc_opportunity_applicant') }} a
     inner join intake_opportunity io
         on a.opportunity_id = io.opportunity_id
     left join {{ ref('stg_pc_worknode') }} w
         on a.applied_to_entity_id = w.worknode_id
-    left join e2_chapter_lookup cm
-        on a.applicant_campaign = cm.sourcing_campaign_code
+    left join chapter_worknode_cities cwc
+        on w.worknode_name = cwc.worknode_name
+       and w.worknode_type ilike '%MAD_CHAPTER%'
+    left join campaign_chapter_lookup cm
+        on btrim(a.applicant_campaign, E' \t\r\n') = cm.campaign_code
     where a.is_deleted = false
       and a.user_id is not null
 ),
@@ -110,18 +177,21 @@ intake_by_volunteer as (
         bool_or(application_status = 'PENDING') as is_applied,
         bool_or(application_status = 'COMPLETED') as is_completed,
         bool_or(current_step_status = 'HIRE') as is_recruited_new,
-        -- lead_attribution (§12c, revised §12d): chapter (campaign-code match, the only
-        -- ID-resolvable path) > chapter_unmatched (worknode says MAD_CHAPTER but we can't say
-        -- which one -- see KNOWN GAP above; kept distinct from open_pool per §12d so it isn't
-        -- silently folded into the national pool) > city (CITY-type worknode) > open_pool.
+        -- lead_attribution (§12c, revised §12d, 2026-11-12): chapter (campaign-code match, the only
+        -- ID-resolvable path) > city (CITY-type worknode, or a MAD_CHAPTER worknode resolved to its
+        -- city, chapter_worknode_cities) > chapter_unmatched (a MAD_CHAPTER worknode with no name)
+        -- > open_pool. chapter_unmatched stays distinct from open_pool per §12d.
         case
             when bool_or(campaign_chapter_id is not null) then 'chapter'
+            when bool_or(worknode_type ilike '%CITY%' or chapter_worknode_city is not null) then 'city'
             when bool_or(worknode_type ilike '%MAD_CHAPTER%') then 'chapter_unmatched'
-            when bool_or(worknode_type ilike '%CITY%') then 'city'
             else 'open_pool'
         end as lead_attribution,
         max(campaign_chapter_id) as intake_chapter_id,
-        max(worknode_name) filter (where worknode_type ilike '%CITY%') as intake_city_name
+        coalesce(
+            max(worknode_name) filter (where worknode_type ilike '%CITY%'),
+            max(chapter_worknode_city)
+        ) as intake_city_name
     from intake_applicants
     group by volunteer_id
 ),
@@ -228,6 +298,10 @@ select
     cn.chapter,
     i.intake_city_name as city,
     i.lead_attribution,
+    -- The chapter whose sourcing link the volunteer applied through (2026-11-12). chapter_id puts a
+    -- volunteer already mapped to a school on that school's chapter, so chapter-link counts use this
+    -- instead: a CCI-link applicant mapped to an E2 school is a CCI lead, not a School one.
+    i.intake_chapter_id as link_chapter_id,
 
     -- INTAKE (26-27 cohort only)
     coalesce(i.is_draft, false) as is_draft,

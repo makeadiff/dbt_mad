@@ -338,15 +338,17 @@ e2_children_placed_by_chapter AS (
 -- chase list -- distinct from city/open_pool/chapter_unmatched leads, which can't be attributed to
 -- one chapter at all.
 -- Grain: one row per E2 chapter_id
+-- Counted on the link's chapter (link_chapter_id, 2026-11-12), not the mapped school's, so a CCI-link
+-- applicant mapped to an E2 school isn't counted here.
 e2_leads_applied_via_link_by_chapter AS (
     SELECT
-        chapter_id,
+        link_chapter_id AS chapter_id,
         COUNT(DISTINCT volunteer_id) AS leads_applied_via_link
     FROM {{ ref('fct_volunteer_pipeline') }}
     WHERE lead_attribution = 'chapter'
       AND is_applied = true
       AND is_recruited_new = false
-    GROUP BY chapter_id
+    GROUP BY link_chapter_id
 ),
 
 -- Grain: one row per E2 chapter_id
