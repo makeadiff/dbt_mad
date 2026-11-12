@@ -166,3 +166,10 @@ sources:
       - name: reasons
       - name: retentionFormResponse_reasons_bridge
 
+
+  # Platform Commons "Class ops master data" stream (dataset CC_MAD_SchoolData), on the existing
+  # "Platform commons" Airbyte source since 2026-11-12, daily. One row per slot shift (class) per
+  # academic year with its weekly slot day: the CCI slot-day source (E1 spec §7 L1).
+  - name: pc_reporting
+    tables:
+      - name: Class_ops_master_data

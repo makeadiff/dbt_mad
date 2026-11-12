@@ -2,8 +2,9 @@
 
 -- Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
 -- should ref() this model. One row (spec E1 §3.8): when Platform Commons data last landed, and how
--- many mentoring circles have a weekly slot linked, so readers see why planned sessions and
--- consistency aren't shown yet (spec §5, §7 ruling 1). Last synced is the latest xModifiedTimestamp
+-- many mentoring circles have a weekly slot day. Since layout v4 (spec §7 L1) the slot day comes from
+-- Platform Commons' class ops data (prod_cci_mentoring_circles.has_weekly_slot), not the pc_raw
+-- bridge; circles without one have no planned sessions. Last synced is the latest xModifiedTimestamp
 -- (UTC, shown as the IST date) across the Platform Commons tables the dashboard reads; the volunteer
 -- list table carries no such column, so it isn't in the max.
 
