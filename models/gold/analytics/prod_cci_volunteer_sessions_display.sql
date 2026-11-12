@@ -8,7 +8,7 @@
 -- sessions reach the warehouse. "Period" is a tab-level choice in Dalgo; "Period order" sorts it.
 
 select
-    chapter_name                    as "Chapter",
+    chapter_name                    as "CCI",
     city                            as "City",
     district                        as "District",
     do_name                         as "DO",

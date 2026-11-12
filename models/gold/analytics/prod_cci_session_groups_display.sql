@@ -33,7 +33,7 @@ long as (
 )
 
 select
-    chapter_name        as "Chapter",
+    chapter_name        as "CCI",
     city                as "City",
     district            as "District",
     do_name             as "DO",
