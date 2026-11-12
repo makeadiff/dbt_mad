@@ -7,7 +7,7 @@
 -- the month holding the week's Thursday, for a month filter (spec E1 §7 L6).
 
 select
-    chapter_name                    as "Chapter",
+    chapter_name                    as "CCI",
     city                            as "City",
     district                        as "District",
     do_name                         as "DO",

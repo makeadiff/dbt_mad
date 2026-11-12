@@ -1,7 +1,7 @@
 -- Per chapter x week, the "Original volunteer" rows of the long model sum to the breakdown's
 -- sessions_held_by_original, and "Held by" is set exactly on Held rows (spec E1 §7 L5, pies).
 with groups as (
-    select "Chapter" as chapter_name, "City" as city, "District" as district, "Week starting" as week_start,
+    select "CCI" as chapter_name, "City" as city, "District" as district, "Week starting" as week_start,
         sum("Sessions") as sessions
     from {{ ref('prod_cci_session_groups_display') }}
     where "Held by" = 'Original volunteer'

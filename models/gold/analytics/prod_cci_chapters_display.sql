@@ -14,7 +14,7 @@
 -- repeated on every CCI in the city: a table column, never summed in a tile.
 
 select
-    chapter_name                                    as "Chapter",
+    chapter_name                                    as "CCI",
     city                                            as "City",
     district                                        as "District",
     do_name                                         as "DO",
@@ -45,7 +45,7 @@ select
     volunteers_minimum_to_start                     as "Minimum volunteers to start sessions",
     volunteers_needed_as_set_up_1to5                as "Volunteers needed, one per mentoring circle",
     volunteers_placed                               as "Volunteers assigned to a class section",
-    leads_chapter_link                              as "Leads from this chapter's link",
+    leads_chapter_link                              as "Leads from this CCI's link",
     leads_city                                      as "Leads in this city",
     case when volunteer_requirement_met_1to5 then 'Met' else 'Not met' end
                                                     as "Volunteer requirement (1:5)",
