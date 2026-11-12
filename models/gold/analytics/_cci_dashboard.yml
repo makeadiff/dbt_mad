@@ -1,6 +1,30 @@
 version: 2
 
 seeds:
+  - name: seed_cci_baseline_chapter_name
+    description: >
+      E1 baseline sheet chapter spelling -> CCI school_id (E1 spec §7 B2). One row per spelling seen
+      in the sheet's Chapter Name (or, for "Chapter not listed above", its free-text chapter answer),
+      matched exactly after trimming, so each variant ("St. Patricks" / "ST. Patricks") has its own
+      row. Also carries the Dashboard tab's names for CCIs with no responses yet. A blank school_id
+      marks a School or Community chapter on the sheet: known, out of scope. Spellings in neither
+      group are reported by assert_cci_baseline_chapter_names_mapped (warn), never guessed.
+    config:
+      column_types:
+        sheet_chapter_name: text
+        school_id: text
+    columns:
+      - name: sheet_chapter_name
+        tests:
+          - unique
+          - not_null
+      - name: school_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('seed_cci_chapter_group')
+                field: school_id
+
   - name: seed_cci_chapter_group
     description: >
       CCI -> city -> district -> DO list for the CCI dashboard (E1), one row per Platform Commons school
@@ -329,3 +353,32 @@ models:
       - dbt_utils.expression_is_true:
           arguments:
             expression: '"CCIs" > 0'
+
+  - name: prod_cci_baseline_chapters
+    description: >
+      CCI dashboard (E1) Metric 4, baseline (spec §3.7, §7 B1-B5), snake_case. One row per CCI
+      (28): active children, children with a baseline (distinct name + grade on the E1 baseline
+      sheet), % of active children, children who cleared ASER, forms submitted. Not read by Dalgo.
+    columns:
+      - name: chapter_id
+        tests:
+          - unique
+          - not_null
+      - name: children_with_baseline
+        tests:
+          - not_null
+      - name: children_cleared_aser
+        tests:
+          - not_null
+
+  - name: prod_cci_baseline_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. The CCI Baseline tab's table: one row per CCI, sourced from
+      prod_cci_baseline_chapters. Counts children, not forms (except "Baseline forms submitted").
+    columns:
+      - name: CCI
+        quote: true
+        tests:
+          - not_null
+          - unique

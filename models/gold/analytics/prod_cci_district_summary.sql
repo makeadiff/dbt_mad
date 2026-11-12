@@ -14,6 +14,8 @@
 -- Layout v4 (spec §7 L1-L7): setup complete, weekly slots, minimum volunteers, planned-based
 -- sessions and leads from CCI links (additive). City and open-pool leads aren't per CCI, so they
 -- live on prod_cci_national_display only. The All districts row is the sum of the district rows.
+-- Baseline (spec §7 B1-B5): summed from prod_cci_baseline_chapters, joined on district; % with a
+-- baseline is a ratio of sums over active children.
 --
 -- Grain: one row per district, plus 'All districts'.
 
@@ -92,6 +94,16 @@ with_all as (
     select * from grouped
     union all
     select * from all_row
+),
+
+baseline as (
+    select
+        coalesce(district, 'All districts')         as district,
+        sum(children_with_baseline)                 as children_with_baseline,
+        sum(children_cleared_aser)                  as children_cleared_aser,
+        sum(baseline_forms_submitted)               as baseline_forms_submitted
+    from {{ ref('prod_cci_baseline_chapters') }}
+    group by rollup (district)
 )
 
 select
@@ -107,5 +119,10 @@ select
     round(100.0 * (sessions_held_since_1_oct - sessions_held_by_substitute_since_1_oct)
         / nullif(sessions_planned_since_1_oct, 0), 1) as pct_held_by_original_since_1_oct,
     round(100.0 * sessions_held_since_1_oct / nullif(sessions_planned_since_1_oct, 0), 1) as pct_sessions_held_since_1_oct,
-    round(100.0 * sessions_cancelled_since_1_oct / nullif(sessions_planned_since_1_oct, 0), 1) as pct_sessions_cancelled_since_1_oct
+    round(100.0 * sessions_cancelled_since_1_oct / nullif(sessions_planned_since_1_oct, 0), 1) as pct_sessions_cancelled_since_1_oct,
+    coalesce(bl.children_with_baseline, 0) as children_with_baseline,
+    round(100.0 * coalesce(bl.children_with_baseline, 0) / nullif(w.active_children, 0), 1) as pct_children_with_baseline,
+    coalesce(bl.children_cleared_aser, 0) as children_cleared_aser,
+    coalesce(bl.baseline_forms_submitted, 0) as baseline_forms_submitted
 from with_all w
+left join baseline bl on w.district = bl.district

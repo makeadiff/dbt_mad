@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: int_google_sheet__cci_baseline_children
+    description: >
+      E1 baseline sheet resolved to CCIs (E1 spec §3.7, §7 B1-B4): one row per child per CCI,
+      a child being distinct (CCI, lower-trimmed name, grade), keyed by an md5 so no name leaves
+      staging. Forms submitted and cleared ASER per child. Feeds prod_cci_baseline_chapters.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [school_id, child_key]
+    columns:
+      - name: school_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('seed_cci_chapter_group')
+                field: school_id
+      - name: child_key
+        tests:
+          - not_null

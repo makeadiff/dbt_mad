@@ -53,5 +53,10 @@ select
     sessions_cancelled_since_1_oct                  as "Sessions cancelled since 1 October",
     pct_sessions_held_since_1_oct                   as "% of planned sessions held since 1 October",
     pct_sessions_cancelled_since_1_oct              as "% of planned sessions cancelled since 1 October",
+    -- Baseline (spec §7 B5)
+    children_with_baseline                          as "Children with a baseline",
+    pct_children_with_baseline                      as "% of children with a baseline",
+    children_cleared_aser                           as "Children who cleared ASER",
+    baseline_forms_submitted                        as "Baseline forms submitted",
     district_sort                                   as "District order"
 from {{ ref('prod_cci_district_summary') }}
