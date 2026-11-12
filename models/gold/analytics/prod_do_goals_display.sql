@@ -7,11 +7,13 @@
 -- Counts come from the existing models: prod_do_district_summary (goals 1 and 2),
 -- prod_do_chapter_summary (goal 3, chapters with every circle started), and
 -- prod_do_volunteer_consistency, period "Since 1 October", rolled up by district (goal 4; no
--- district rollup existed). Goal 5 (baseline) has no source yet: Not measured yet.
+-- district rollup existed). Goal 5 (baseline, spec §3.4 B5): children with all three forms done ÷
+-- active children, from prod_do_district_summary.
 -- Met = Now >= Target.
 
 with districts as (
-    select district, do_name, district_sort, chapters, active_children, children_covered, chapters_met_1to5
+    select district, do_name, district_sort, chapters, active_children, children_covered, chapters_met_1to5,
+        children_baseline_complete
     from {{ ref('prod_do_district_summary') }}
 ),
 
@@ -62,7 +64,8 @@ goals as (
     left join consistency c on c.district = d.district
     union all
     select d.district, d.do_name, d.district_sort, 5,
-        '% of children with a baseline done', 80, null, null
+        '% of children with a baseline done', 80,
+        d.children_baseline_complete::bigint, d.active_children::bigint
     from districts d
 ),
 
@@ -81,8 +84,7 @@ select
     case when den is null then null
          else to_char(num, 'FM999,999,999') || ' of ' || to_char(den, 'FM999,999,999')
     end                                             as "Count",
-    case when goal_order = 5 then 'Not measured yet'
-         when now_pct >= target then 'Yes'
+    case when now_pct >= target then 'Yes'
          else 'No'
     end                                             as "Met",
     '31 Oct 2026'                                   as "Due",

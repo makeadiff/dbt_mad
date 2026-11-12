@@ -45,5 +45,15 @@ select
     sessions_cancelled_since_1_oct  as "Sessions cancelled since 1 October",
     pct_sessions_cancelled_since_1_oct as "% of planned sessions cancelled since 1 October",
     volunteers_not_allocated        as "Volunteers mapped but not assigned to a class section",
-    mentoring_circles_needing_volunteer as "Mentoring circles still needing a volunteer"
+    mentoring_circles_needing_volunteer as "Mentoring circles still needing a volunteer",
+    -- Baseline (Metric 4, spec §3.4)
+    children_numeracy_done          as "Children with numeracy done",
+    children_literacy_done          as "Children with literacy done",
+    children_life_skills_done       as "Children with life skills done",
+    children_0_forms                as "Children with no form done",
+    children_1_form                 as "Children with 1 form done",
+    children_2_forms                as "Children with 2 forms done",
+    children_3_forms                as "Children with all 3 forms done",
+    pct_baseline_complete           as "% of children with baseline complete",
+    target_pct_baseline_complete    as "Target % of children with baseline complete"
 from {{ ref('prod_do_national_kpis') }}
