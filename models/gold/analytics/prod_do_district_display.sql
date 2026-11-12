@@ -35,9 +35,9 @@ select
     children_literacy_done          as "Children with literacy done",
     children_life_skills_done       as "Children with life skills done",
     children_0_forms                as "Children with no form done",
-    children_1_form                 as "Children with 1 form done",
-    children_2_forms                as "Children with 2 forms done",
-    children_3_forms                as "Children with all 3 forms done",
+    children_1_form                 as "Only 1 form done",
+    children_2_forms                as "2 of 3 forms done",
+    children_3_forms                as "All 3 forms done",
     pct_baseline_complete           as "% of children with baseline complete",
     district_sort                   as "District order"
 from {{ ref('prod_do_district_summary') }}

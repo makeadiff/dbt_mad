@@ -13,6 +13,13 @@
 -- Counts children, not forms, so it reads a little below the Dots "Assessment Completion" report
 -- (a few children are assessed twice).
 --
+-- Forms submitted (DO spec §8, 2026-11-12): every qualifying form, not children, so a child
+-- assessed twice counts twice, as the Dots "Assessment Completion" report does. A form is placed
+-- on a chapter through its mentoring circle (slot_class_section -> slot -> school), not through the
+-- child, so it matches the Dots report (117 / 75 / 75 on 2026-11-12). The AY date filter also drops
+-- one numeracy editPublished copy with no created date (a second form for a child who already has
+-- one); without it numeracy would read 118 against Dots' 117.
+--
 -- Source: int_dots__baseline_submissions (PR #117).
 -- Grain: one row per chapter_id.
 
@@ -23,6 +30,23 @@ with forms_done as (
       and coalesce(assessment_round, 'baseline') = 'baseline'
       and child_id is not null
       and created_date >= date '2026-04-01'
+),
+
+forms_submitted as (
+    select
+        s.school_id::text                                       as chapter_id,
+        count(*) filter (where f.form = 'numeracy')             as forms_numeracy_submitted,
+        count(*) filter (where f.form = 'literacy')             as forms_literacy_submitted,
+        count(*) filter (where f.form = 'life_skills')          as forms_life_skills_submitted
+    from {{ ref('int_dots__baseline_submissions') }} f
+    join {{ ref('int_bubble__slot_class_section') }} scs
+        on f.slot_class_section_id = scs.slot_class_section_id
+    join {{ ref('int_bubble__slot') }} s
+        on scs.slot_id = s.slot_id
+    where f.is_published
+      and coalesce(f.assessment_round, 'baseline') = 'baseline'
+      and f.created_date >= date '2026-04-01'
+    group by 1
 ),
 
 children as (
@@ -71,6 +95,10 @@ select
     coalesce(b.children_2_forms, 0)             as children_2_forms,
     coalesce(b.children_3_forms, 0)             as children_3_forms,
     coalesce(b.children_3_forms, 0)             as children_baseline_complete,
-    round(100.0 * b.children_3_forms / nullif(b.active_children, 0), 1) as pct_baseline_complete
+    round(100.0 * b.children_3_forms / nullif(b.active_children, 0), 1) as pct_baseline_complete,
+    coalesce(fs.forms_numeracy_submitted, 0)    as forms_numeracy_submitted,
+    coalesce(fs.forms_literacy_submitted, 0)    as forms_literacy_submitted,
+    coalesce(fs.forms_life_skills_submitted, 0) as forms_life_skills_submitted
 from {{ ref('prod_do_chapter_summary') }} s
 left join by_chapter b on s.chapter_id = b.chapter_id
+left join forms_submitted fs on s.chapter_id = fs.chapter_id
