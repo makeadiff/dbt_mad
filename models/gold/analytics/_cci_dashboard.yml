@@ -357,8 +357,10 @@ models:
   - name: prod_cci_baseline_chapters
     description: >
       CCI dashboard (E1) Metric 4, baseline (spec §3.7, §7 B1-B5), snake_case. One row per CCI
-      (28): active children, children with a baseline (distinct name + grade on the E1 baseline
-      sheet), % of active children, children who cleared ASER, forms submitted. Not read by Dalgo.
+      (28): active children, Foundations children, children with a baseline on the sheet (distinct
+      name + grade on the E1 baseline sheet), children with a baseline (capped at Foundations
+      children, Foundations only since 2026-11-14), % of Foundations children, children who cleared
+      ASER, forms submitted. Not read by Dalgo.
     columns:
       - name: chapter_id
         tests:

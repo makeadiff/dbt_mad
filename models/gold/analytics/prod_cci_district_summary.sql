@@ -15,7 +15,8 @@
 -- sessions and leads from CCI links (additive). City and open-pool leads aren't per CCI, so they
 -- live on prod_cci_national_display only. The All districts row is the sum of the district rows.
 -- Baseline (spec §7 B1-B5): summed from prod_cci_baseline_chapters, joined on district; % with a
--- baseline is a ratio of sums over active children.
+-- baseline is a ratio of sums over active children in Foundations (Foundations only, 2026-11-14;
+-- children with a baseline are capped per CCI in prod_cci_baseline_chapters).
 --
 -- Grain: one row per district, plus 'All districts'.
 
@@ -121,7 +122,7 @@ select
     round(100.0 * sessions_held_since_1_oct / nullif(sessions_planned_since_1_oct, 0), 1) as pct_sessions_held_since_1_oct,
     round(100.0 * sessions_cancelled_since_1_oct / nullif(sessions_planned_since_1_oct, 0), 1) as pct_sessions_cancelled_since_1_oct,
     coalesce(bl.children_with_baseline, 0) as children_with_baseline,
-    round(100.0 * coalesce(bl.children_with_baseline, 0) / nullif(w.active_children, 0), 1) as pct_children_with_baseline,
+    round(100.0 * coalesce(bl.children_with_baseline, 0) / nullif(w.children_foundations, 0), 1) as pct_children_with_baseline,
     coalesce(bl.children_cleared_aser, 0) as children_cleared_aser,
     coalesce(bl.baseline_forms_submitted, 0) as baseline_forms_submitted
 from with_all w

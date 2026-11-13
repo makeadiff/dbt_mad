@@ -1,7 +1,8 @@
 -- CCI baseline (E1 spec §7 B3-B5): cleared ASER is never more than children with a baseline, and
 -- children never more than forms. The district rows (All districts included) and the national row
 -- equal the sum of the CCIs, and active children match prod_cci_chapter_summary, so the Baseline
--- tab and the other tabs show the same children.
+-- tab and the other tabs show the same children. Foundations only (2026-11-14): children with a
+-- baseline never pass the CCI's Foundations children, nor the sheet count.
 with chapters as (
     select
         sum(children_with_baseline)     as children,
@@ -15,6 +16,9 @@ checks as (
     from {{ ref('prod_cci_baseline_chapters') }} b
     join {{ ref('prod_cci_chapter_summary') }} s on b.chapter_id = s.chapter_id
     where b.active_children <> s.active_children
+       or b.children_foundations <> s.children_foundations
+       or b.children_with_baseline > b.children_foundations
+       or b.children_with_baseline > b.children_with_baseline_on_sheet
        or b.children_cleared_aser > b.children_with_baseline
        or b.children_with_baseline > b.baseline_forms_submitted
 
