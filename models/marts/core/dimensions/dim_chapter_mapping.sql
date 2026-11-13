@@ -24,6 +24,11 @@
 --     is resolved everywhere else -- the active Bubble user with user_role = 'CHO' whose worknode_id
 --     matches this chapter's worknode_id (worknode_id itself still comes from the sheet, since that
 --     chapter_id <-> worknode_id mapping is the one thing the sheet is actually the source for).
+--   - cho_name, changed 2026-11-13 (DO spec §6, ruled by Akshay): the mapping sheet decides. A
+--     worknode can have two active CHOs in Bubble (21 did on 2026-11-13), and latest modified_date
+--     picked the wrong one (Corner Stone 556 showed Amaan Shaikh; the sheet says Mayanka Mahale).
+--     cho_name is now the sheet's CHO_ID resolved to a name (int_google_sheet__chapter_mapping.cho_name),
+--     falling back to the Bubble worknode lookup only when the sheet row has no CHO_ID.
 
 with mapping_sheet_deduped as (
     -- one row per chapter_id: prefer the currently-valid mapping row when duplicates exist
@@ -32,7 +37,9 @@ with mapping_sheet_deduped as (
         chapter_name,
         engine,
         chapter_status,
-        worknode_id
+        worknode_id,
+        cho_id,
+        cho_name
     from {{ ref('int_google_sheet__chapter_mapping') }}
     where chapter_id is not null
     order by chapter_id, validation_status desc
@@ -56,7 +63,7 @@ select
     p.city as city_name,
     p.state,
     p.co_name,
-    cho.cho_name,
+    case when mm.cho_id is not null then mm.cho_name else cho.cho_name end as cho_name,
     mm.engine,
     mm.chapter_status,
     mm.worknode_id

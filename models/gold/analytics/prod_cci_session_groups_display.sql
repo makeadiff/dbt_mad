@@ -13,7 +13,7 @@
 -- "Group order" sorts the groups for the legend (Held first). School's "Chapter organiser" column
 -- has no CCI source, so it isn't here.
 --
--- Grain: one row per CCI x week x "What happened" x "Held by", zero rows left out.
+-- Grain: one row per CCI x programme x week x "What happened" x "Held by", zero rows left out.
 
 with base as (
     select * from {{ ref('prod_cci_session_breakdown') }}
@@ -37,6 +37,7 @@ select
     city                as "City",
     district            as "District",
     do_name             as "DO",
+    programme           as "Programme",
     week_label          as "Week",
     week_start          as "Week starting",
     month_label         as "Month",

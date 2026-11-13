@@ -11,7 +11,10 @@
 -- Circles with no weekly slot day have no planned dates, so they aren't sessions here; their count
 -- is "Mentoring circles with no weekly slot" on prod_cci_chapters_display.
 --
--- Grain: one row per (chapter_id, week_start); every CCI with children x every week to date.
+-- Programme (E1 spec §8 2026-11-13, point 2): each circle's section's programme; summing over
+-- programmes gives the CCI's totals.
+-- Grain: one row per (chapter_id, programme, week_start); every CCI with children x each programme
+-- it has active children in x every week to date.
 
 with weeks as (
     select week_start, week_label, month_start, month_label
@@ -19,18 +22,35 @@ with weeks as (
     group by 1, 2, 3, 4
 ),
 
+circle_programme as (
+    -- A circle sits on one section, so it has one programme: the section's (prod_cci_active_children).
+    select c.worknode_slot_shift_id, sp.programme
+    from {{ ref('prod_cci_mentoring_circles') }} c
+    join (select distinct sc_level_batch_id, programme from {{ ref('prod_cci_active_children') }}) sp
+        on c.sc_level_batch_id = sp.sc_level_batch_id
+),
+
+cci_programmes as (
+    -- Every programme a CCI has active children in, so each CCI x programme gets every week.
+    select distinct chapter_id, programme
+    from {{ ref('prod_cci_active_children') }}
+),
+
 per_week as (
     select
-        chapter_id,
-        week_start,
+        ps.chapter_id,
+        cp.programme,
+        ps.week_start,
         count(*) as sessions_planned,
         count(*) filter (where session_group = 'cancelled') as sessions_cancelled,
         count(*) filter (where session_group = 'held_by_original') as sessions_held_by_original,
         count(*) filter (where session_group = 'held_by_substitute') as sessions_held_by_substitute,
         count(*) filter (where session_group = 'volunteer_absent') as sessions_volunteer_absent,
         count(*) filter (where session_group = 'no_volunteer_assigned') as sessions_no_volunteer_assigned
-    from {{ ref('prod_cci_planned_sessions') }}
-    group by 1, 2
+    from {{ ref('prod_cci_planned_sessions') }} ps
+    join circle_programme cp
+        on ps.worknode_slot_shift_id = cp.worknode_slot_shift_id
+    group by 1, 2, 3
 ),
 
 joined as (
@@ -40,6 +60,7 @@ joined as (
         s.city,
         s.district,
         s.do_name,
+        pg.programme,
         wk.week_start,
         wk.week_label,
         wk.month_start,
@@ -51,9 +72,12 @@ joined as (
         coalesce(pw.sessions_volunteer_absent, 0) as sessions_volunteer_absent,
         coalesce(pw.sessions_no_volunteer_assigned, 0) as sessions_no_volunteer_assigned
     from {{ ref('prod_cci_chapter_summary') }} s
+    join cci_programmes pg
+        on s.chapter_id = pg.chapter_id
     cross join weeks wk
     left join per_week pw
         on s.chapter_id = pw.chapter_id
+       and pg.programme = pw.programme
        and wk.week_start = pw.week_start
     where s.has_children
 )

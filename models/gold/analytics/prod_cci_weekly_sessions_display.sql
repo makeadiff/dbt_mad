@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 -- Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
--- should ref() this model. One row per CCI per week, sourced from prod_cci_weekly_sessions. Counts
+-- should ref() this model. One row per CCI per programme per week, sourced from prod_cci_weekly_sessions. Counts
 -- add up across weeks and within a month; the % columns are per row and never summed. Planned
 -- includes cancelled dates; "Sessions not held" = planned - held, of which "Cancelled". "Month" is
 -- the month holding the week's Thursday, for a month filter (spec E1 §7 L6).
@@ -11,6 +11,7 @@ select
     city                            as "City",
     district                        as "District",
     do_name                         as "DO",
+    programme                       as "Programme",
     week_label                      as "Week",
     week_start                      as "Week starting",
     month_label                     as "Month",

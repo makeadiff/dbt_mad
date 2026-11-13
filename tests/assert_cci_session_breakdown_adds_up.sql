@@ -6,6 +6,7 @@ select b.chapter_id, b.week_start
 from {{ ref('prod_cci_session_breakdown') }} b
 left join {{ ref('prod_cci_weekly_sessions') }} w
     on b.chapter_id = w.chapter_id
+   and b.programme = w.programme
    and b.week_start = w.week_start
 where b.sessions_held + b.sessions_cancelled + b.sessions_volunteer_absent
         + b.sessions_no_volunteer_assigned <> b.sessions_planned

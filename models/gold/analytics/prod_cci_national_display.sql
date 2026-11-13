@@ -64,6 +64,7 @@ select
     a.sessions_volunteer_absent_since_1_oct     as "Volunteer absent since 1 October",
     a.sessions_no_volunteer_assigned_since_1_oct as "No volunteer assigned since 1 October",
     -- Baseline (spec §7 B5)
+    a.children_grades_5_to_8                    as "Active children in grades 5 to 8",
     a.children_with_baseline                    as "Children with a baseline",
     a.pct_children_with_baseline                as "% of children with a baseline",
     a.children_cleared_aser                     as "Children who cleared ASER",
