@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 -- Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
--- should ref() this model. One row per CCI per week, sourced from prod_cci_session_breakdown (spec
+-- should ref() this model. One row per CCI per programme per week, sourced from prod_cci_session_breakdown (spec
 -- E1 §3.10, layout v4 §7 L1 and L6). Counts add up across weeks and within a month; the % columns
 -- are % of planned, per row, never summed. The first pie's groups are "Sessions held", "Cancelled",
 -- "Volunteer absent" and "No volunteer assigned" (they add up to "Sessions planned"); the second
@@ -12,6 +12,7 @@ select
     city                            as "City",
     district                        as "District",
     do_name                         as "DO",
+    programme                       as "Programme",
     week_label                      as "Week",
     week_start                      as "Week starting",
     month_label                     as "Month",

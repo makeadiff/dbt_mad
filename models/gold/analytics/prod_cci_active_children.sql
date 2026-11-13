@@ -13,6 +13,9 @@
 -- Programme (section's course): Foundation Program -> Foundations; Ed Support / Education Support
 -- -> Education Support; Commerce / Humanities / Science -> Transition Readiness; no course ->
 -- Programme not set. A child in two sections counts once per section.
+-- Grade (E1 spec §8 2026-11-13): the section's level name on Platform Commons (stg_pc_level_name.class
+-- via stg_pc_level_levelName_bridge on stg_pc_sc_level_id.level_id), "Level N" or "Class N" -> N;
+-- null when the section has no level name (333 children on 2026-11-13). Used by the baseline only.
 --
 -- Grain: one row per (student_id, sc_level_batch_id).
 
@@ -28,10 +31,15 @@ with sections as (
             when 'Humanities' then 'Transition Readiness'
             when 'Science' then 'Transition Readiness'
             else 'Programme not set'
-        end as programme
+        end as programme,
+        substring(ln.class from '^(?:Level|Class) ([0-9]+)$')::int as grade
     from {{ ref('stg_pc_sc_level_batch') }} lb
     join {{ ref('stg_pc_sc_level_id') }} li
         on lb.sc_level_id = li.sc_level_id_table_id
+    left join {{ ref('stg_pc_level_levelName_bridge') }} lnb
+        on li.level_id = lnb.level_id
+    left join {{ ref('stg_pc_level_name') }} ln
+        on lnb.level_name_id = ln.level_name_id
     join {{ ref('stg_pc_school_course') }} sc
         on li.school_course_id = sc.school_course_id
     left join {{ ref('stg_pc_course_course_name_bridge') }} b
@@ -46,7 +54,8 @@ select distinct
     s.chapter_id,
     s.sc_level_batch_id,
     bs.student_id,
-    s.programme
+    s.programme,
+    s.grade
 from sections s
 join {{ ref('stg_pc_batch_student') }} bs
     on s.sc_level_batch_id = bs.sc_level_batch_id

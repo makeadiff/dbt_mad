@@ -122,13 +122,14 @@ models:
 
   - name: prod_cci_weekly_sessions
     description: >
-      CCI dashboard (E1) weekly sessions held, one row per CCI per week (Monday start) from the week
+      CCI dashboard (E1) weekly sessions held, one row per CCI per programme per week (Monday start) from the week
       of 28 Sep, counting from 2026-10-01.
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
               - chapter_id
+              - programme
               - week_start
 
   - name: prod_cci_chapters_display
@@ -144,7 +145,7 @@ models:
   - name: prod_cci_weekly_sessions_display
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
-      should ref() this model. One row per CCI per week.
+      should ref() this model. One row per CCI per programme per week.
 
   - name: prod_cci_data_freshness_display
     description: >
@@ -196,12 +197,13 @@ models:
 
   - name: prod_cci_session_breakdown
     description: >
-      CCI dashboard (E1) sessions held by the original volunteer vs a substitute, and cancelled, one row per CCI per week (spec §3.10).
+      CCI dashboard (E1) sessions held by the original volunteer vs a substitute, and cancelled, one row per CCI per programme per week (spec §3.10; programme E1 §8 2026-11-13).
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
               - chapter_id
+              - programme
               - week_start
 
   - name: prod_cci_cancellation_reasons
@@ -252,7 +254,7 @@ models:
   - name: prod_cci_session_breakdown_display
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
-      should ref() this model. One row per CCI per week.
+      should ref() this model. One row per CCI per programme per week.
 
   - name: prod_cci_cancellation_reasons_display
     description: >
@@ -320,7 +322,7 @@ models:
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
       should ref() this model. Long form of prod_cci_session_breakdown for the Sessions pies (spec E1
-      §7 L5): one row per CCI x week x "What happened" x "Held by", zero rows dropped. The three sum
+      §7 L5): one row per CCI x programme x week x "What happened" x "Held by", zero rows dropped. The three sum
       tests against the breakdown are singular tests: tests/assert_cci_session_groups_sum_*.sql.
     tests:
       - dbt_utils.unique_combination_of_columns:
@@ -328,6 +330,7 @@ models:
             combination_of_columns:
               - '"CCI"'
               - '"City"'
+              - '"Programme"'
               - '"Week starting"'
               - '"What happened"'
               - '"Held by"'

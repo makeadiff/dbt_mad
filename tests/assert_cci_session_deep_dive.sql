@@ -5,6 +5,7 @@ select b.chapter_id::text as problem
 from {{ ref('prod_cci_session_breakdown') }} b
 join {{ ref('prod_cci_weekly_sessions') }} w
     on b.chapter_id = w.chapter_id
+   and b.programme = w.programme
    and b.week_start = w.week_start
 where b.sessions_held <> w.sessions_held
 union all

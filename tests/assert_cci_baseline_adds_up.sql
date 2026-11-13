@@ -17,6 +17,7 @@ checks as (
     where b.active_children <> s.active_children
        or b.children_cleared_aser > b.children_with_baseline
        or b.children_with_baseline > b.baseline_forms_submitted
+       or b.children_grades_5_to_8 > b.active_children
 
     union all
     select 'district sum'
