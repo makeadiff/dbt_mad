@@ -385,3 +385,39 @@ models:
     description: >
       Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
       should ref() this model. One row per child per chapter per period.
+
+  - name: prod_do_volunteer_weekly_attendance
+    description: >
+      DO dashboard (E2) weekly volunteer attendance, one row per volunteer per chapter per week
+      (spec §3.9 W1). Weeks sum to the volunteer's "Since 1 October" row in
+      prod_do_volunteer_sessions: tests/assert_do_weekly_attendance_sums_to_term.sql.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - volunteer_id
+              - week_start
+
+  - name: prod_do_child_weekly_attendance
+    description: >
+      DO dashboard (E2) weekly child attendance, one row per child per chapter per week; first name
+      and child ID only (spec §3.9 W1). Weeks sum to the child's "Since 1 October" row in
+      prod_do_child_sessions: tests/assert_do_weekly_attendance_sums_to_term.sql.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - child_id
+              - week_start
+
+  - name: prod_do_volunteer_weekly_attendance_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per volunteer per chapter per week (spec §3.9).
+
+  - name: prod_do_child_weekly_attendance_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per child per chapter per week (spec §3.9).
