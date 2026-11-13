@@ -382,3 +382,39 @@ models:
         tests:
           - not_null
           - unique
+
+  - name: prod_cci_volunteer_weekly_attendance
+    description: >
+      CCI dashboard (E1) weekly volunteer attendance, one row per volunteer per CCI per week (DO spec
+      §3.9 W1). Weeks sum to the volunteer's "Since 1 October" row in prod_cci_volunteer_sessions:
+      tests/assert_cci_weekly_attendance_sums_to_term.sql.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - volunteer_user_id
+              - week_start
+
+  - name: prod_cci_child_weekly_attendance
+    description: >
+      CCI dashboard (E1) weekly child attendance, one row per child per CCI per week; first name and
+      child ID only (DO spec §3.9 W1). Weeks sum to the child's "Since 1 October" row in
+      prod_cci_child_sessions: tests/assert_cci_weekly_attendance_sums_to_term.sql.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - chapter_id
+              - child_id
+              - week_start
+
+  - name: prod_cci_volunteer_weekly_attendance_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per volunteer per CCI per week (DO spec §3.9).
+
+  - name: prod_cci_child_weekly_attendance_display
+    description: >
+      Dalgo-facing presentation model. Column names are display names by design. Nothing in dbt
+      should ref() this model. One row per child per CCI per week (DO spec §3.9).
